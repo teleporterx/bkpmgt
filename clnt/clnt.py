@@ -6,6 +6,7 @@ import json
 import signal
 import aio_pika
 from sys_utils.uuid_info import get_system_uuid
+import pexpect
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -36,6 +37,30 @@ async def interruptible_sleep(duration):
             break  # Stop sleeping if shutdown signal received
         await asyncio.sleep(step)
 
+async def handle_repo_snapshots(params):
+    """
+    Handle 'repo_snapshots' message type.
+    """
+    logger.info(f"Received task to list snapshots for repo: {params['repo']}")
+    
+    password = params.get('password')
+    command = ['./rustic', '-r', params['repo'], 'snapshots', '--json']
+    
+    try:
+        # Start the command using pexpect
+        child = pexpect.spawn(' '.join(command))
+        child.expect('enter repository password:')
+        child.sendline(password)  # Send the password
+        
+        # Capture output
+        child.expect(pexpect.EOF)
+        output = child.before.decode('utf-8')  # Get the output
+        
+        # Log the output
+        logger.info(f"Command output:\n{output}")
+    except Exception as e:
+        logger.error(f"Failed to execute command: {e}")
+
 async def consume_messages(system_uuid, connection):
     """
     Consume messages from the RabbitMQ queue for the given system UUID.
@@ -47,12 +72,21 @@ async def consume_messages(system_uuid, connection):
         # Declare the queue
         queue = await channel.declare_queue(queue_name, durable=True)
 
+        # Dispatch table for handling message types
+        dispatch_table = {
+            "repo_snapshots": handle_repo_snapshots,
+        }
+
         async for message in queue:
             async with message.process():
-                # Process the message
-                logger.info(f"Received message: {message.body.decode()}")
-                # Add your message processing logic here
-                # For example: store in a database, trigger actions, etc.
+                message_data = json.loads(message.body.decode())
+                message_type = message_data.get("type")
+                handler = dispatch_table.get(message_type)
+                
+                if handler:
+                    await handler(message_data)
+                else:
+                    logger.warning(f"Unknown message type: {message_type}")
 
 async def agent():
     bhive_uri = "ws://192.168.0.101:5000/ws/{system_uuid}"  # Point to the server IP
