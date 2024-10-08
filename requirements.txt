@@ -1,0 +1,5 @@
+strawberry-graphql
+motor
+fastapi
+uvicorn
+websockets
