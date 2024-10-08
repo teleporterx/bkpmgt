@@ -41,12 +41,12 @@ class DataHandler:
             logger.info(f"Cutoff time for deletion: {cutoff_time.isoformat()}")  # Log cutoff time
 
             # Cleanup old performance metrics
-            result_metrics = await self.performance_metrics_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
-            logger.info(f"Deleted {result_metrics.deleted_count} old performance metrics.")
+            result_repo_snapshots= await self.performance_metrics_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
+            logger.info(f"Deleted {result_repo_snapshots.deleted_count} old repo snapshots.")
 
             # Cleanup old process trees
-            result_process_tree = await self.process_tree_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
-            logger.info(f"Deleted {result_process_tree.deleted_count} old process trees.")
+            result_snapshot_contnents = await self.process_tree_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
+            logger.info(f"Deleted {result_snapshot_contnents.deleted_count} old snapshot contnents.")
 
     async def handle_repo_snapshots(self, system_uuid, message):
         """ store the data to mongo like this for 
