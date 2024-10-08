@@ -20,17 +20,16 @@ client = AsyncIOMotorClient(MONGO_DETAILS)
 db = client["bkpmgt_db"]
 status_collection = db["client_status"]
 repo_snapshots_collection = db["repo_snapshots"]
-snapshot_contnents_collection = db["snapshot_contnents"]
+snapshot_contents_collection = db["snapshot_contents"]
 
 # Data Handler class
 class DataHandler:
     def __init__(self):
         self.repo_snapshots_collection = repo_snapshots_collection
-        self.snapshot_contnents_collection = snapshot_contnents_collection
+        self.snapshot_contents_collection = snapshot_contents_collection
         self.dispatch_table = {
             "repo_snapshots": self.handle_repo_snapshots,
-            "snapshot_contnents": self.handle_snapshot_contnents,
-            # Add more mappings for other types of data
+            "snapshot_contents": self.handle_snapshot_contents,
         }
         # Start the cleanup task
         asyncio.create_task(self.cleanup_old_data())
@@ -41,18 +40,18 @@ class DataHandler:
             cutoff_time = datetime.datetime.now(datetime.timezone.utc) - timedelta(minutes=1)
             logger.info(f"Cutoff time for deletion: {cutoff_time.isoformat()}")
 
-            # Cleanup old performance metrics
+            # Cleanup old repo snapshots
             result_repo_snapshots = await self.repo_snapshots_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
             logger.info(f"Deleted {result_repo_snapshots.deleted_count} old repo snapshots.")
 
-            # Cleanup old process trees
-            result_snapshot_contnents = await self.snapshot_contnents_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
-            logger.info(f"Deleted {result_snapshot_contnents.deleted_count} old snapshot contents.")
+            # Cleanup old snapshot contents
+            result_snapshot_contents = await self.snapshot_contents_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
+            logger.info(f"Deleted {result_snapshot_contents.deleted_count} old snapshot contents.")
 
     async def handle_repo_snapshots(self, system_uuid, message):
         logger.info(f"Stored performance metrics for {system_uuid}")
 
-    async def handle_snapshot_contnents(self, system_uuid, message):
+    async def handle_snapshot_contents(self, system_uuid, message):
         logger.info(f"Stored process tree for {system_uuid}")
 
     async def handle_message(self, system_uuid, message):
@@ -68,9 +67,9 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: dict = {}
         self.data_handler = DataHandler()
-        self.rabbit_connection = None  # Placeholder for RabbitMQ connection
-        self.channel = None  # Placeholder for RabbitMQ channel
-        self.queues = {}  # Store queues by system_uuid
+        self.rabbit_connection = None
+        self.channel = None
+        self.queues = {}
 
     async def connect_to_rabbit(self):
         try:
@@ -150,6 +149,39 @@ class ClientStatus:
     status: str
 
 @strawberry.type
+class Mutation:
+    @strawberry.mutation
+    async def allocate_repo_snapshot_task(
+        self,
+        system_uuid: str,
+        repo: str,
+        password: str,
+    ) -> str:
+        # Check if the client is connected
+        if system_uuid not in manager.active_connections:
+            return "Error: Client not connected"
+
+        # Create a task message
+        task_message = {
+            "type": "repo_snapshots",
+            "repo": repo,
+            "password": password,
+        }
+
+        # Get the client's queue
+        queue = manager.queues.get(system_uuid)
+        if not queue:
+            return "Error: Queue not found for the client"
+
+        # Publish the task to the client's queue
+        await manager.channel.default_exchange.publish(
+            aio_pika.Message(body=json.dumps(task_message).encode()),
+            routing_key=queue.name  # Use the name of the queue as the routing key
+        )
+
+        return f"Task allocated to retrieve snapshots for repo: {repo}"
+
+@strawberry.type
 class Query:
     @strawberry.field
     async def get_client_status(self, system_uuid: str) -> ClientStatus:
@@ -165,7 +197,7 @@ class Query:
             clients.append(ClientStatus(system_uuid=client["system_uuid"], status=client["status"]))
         return clients
 
-schema = strawberry.Schema(query=Query)
+schema = strawberry.Schema(query=Query, mutation=Mutation)
 graphql_app = GraphQLRouter(schema)
 
 # Adding the GraphQL endpoint
