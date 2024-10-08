@@ -3,3 +3,4 @@ motor
 fastapi
 uvicorn
 websockets
+aio-pika

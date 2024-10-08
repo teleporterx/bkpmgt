@@ -8,6 +8,7 @@ from typing import List
 import json
 import datetime
 from datetime import timedelta
+import aio_pika
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -37,31 +38,21 @@ class DataHandler:
     async def cleanup_old_data(self):
         while True:
             await asyncio.sleep(60)  # Wait for 1 min
-            cutoff_time = datetime.datetime.now(datetime.timezone.utc) - timedelta(minutes=1)  # Cutoff time for 1 min ago
-            logger.info(f"Cutoff time for deletion: {cutoff_time.isoformat()}")  # Log cutoff time
+            cutoff_time = datetime.datetime.now(datetime.timezone.utc) - timedelta(minutes=1)
+            logger.info(f"Cutoff time for deletion: {cutoff_time.isoformat()}")
 
             # Cleanup old performance metrics
-            result_repo_snapshots= await self.performance_metrics_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
+            result_repo_snapshots = await self.repo_snapshots_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
             logger.info(f"Deleted {result_repo_snapshots.deleted_count} old repo snapshots.")
 
             # Cleanup old process trees
-            result_snapshot_contnents = await self.process_tree_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
-            logger.info(f"Deleted {result_snapshot_contnents.deleted_count} old snapshot contnents.")
+            result_snapshot_contnents = await self.snapshot_contnents_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
+            logger.info(f"Deleted {result_snapshot_contnents.deleted_count} old snapshot contents.")
 
     async def handle_repo_snapshots(self, system_uuid, message):
-        """ store the data to mongo like this for 
-        await self.performance_metrics_collection.insert_one({
-            "system_uuid": system_uuid,
-            "cpu_usage": message.get("cpu_usage"),
-            "memory_usage": message.get("memory_usage"),
-            "process_count": message.get("process_count"),
-            "timestamp": message.get("timestamp")  # Keep as ISO string
-        })
-        """
         logger.info(f"Stored performance metrics for {system_uuid}")
 
     async def handle_snapshot_contnents(self, system_uuid, message):
-        # store the data to mongo
         logger.info(f"Stored process tree for {system_uuid}")
 
     async def handle_message(self, system_uuid, message):
@@ -76,7 +67,26 @@ class DataHandler:
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict = {}
-        self.data_handler = DataHandler()  # Initialize the DataHandler instance
+        self.data_handler = DataHandler()
+        self.rabbit_connection = None  # Placeholder for RabbitMQ connection
+        self.channel = None  # Placeholder for RabbitMQ channel
+        self.queues = {}  # Store queues by system_uuid
+
+    async def connect_to_rabbit(self):
+        try:
+            self.rabbit_connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
+            self.channel = await self.rabbit_connection.channel()  # Create a channel
+            logger.info("Connected to RabbitMQ.")
+        except Exception as e:
+            logger.error(f"Failed to connect to RabbitMQ: {e}")
+
+    async def create_queue(self, system_uuid: str):
+        queue_name = f"queue_{system_uuid}"
+        await self.channel.set_qos(prefetch_count=1)  # Optional: Control message flow
+        queue = await self.channel.declare_queue(queue_name, durable=True)
+        self.queues[system_uuid] = queue  # Store the reference to the queue
+        logger.info(f"Queue created: {queue_name}")
+        return queue
 
     async def connect(self, websocket: WebSocket, system_uuid: str):
         await websocket.accept()
@@ -87,14 +97,24 @@ class ConnectionManager:
             {"$set": {"status": "connected"}},
             upsert=True
         )
+        await self.create_queue(system_uuid)  # Create a queue for this client
 
     async def disconnect(self, system_uuid: str):
-        self.active_connections.pop(system_uuid, None)
-        logger.info(f"Client {system_uuid} disconnected.")
-        await status_collection.update_one(
-            {"system_uuid": system_uuid},
-            {"$set": {"status": "disconnected"}}
-        )
+        websocket = self.active_connections.pop(system_uuid, None)
+        if websocket:
+            logger.info(f"Client {system_uuid} disconnected.")
+            await status_collection.update_one(
+                {"system_uuid": system_uuid},
+                {"$set": {"status": "disconnected"}}
+            )
+            
+            # Delete the client's queue
+            queue = self.queues.pop(system_uuid, None)
+            if queue:
+                await queue.delete()  # Use the delete method on the queue
+                logger.info(f"Queue deleted: queue_{system_uuid}")
+            else:
+                logger.warning("Queue not found for deletion.")
 
     async def receive_data(self, websocket: WebSocket, system_uuid: str):
         try:
@@ -102,10 +122,7 @@ class ConnectionManager:
                 data = await websocket.receive_text()
                 logger.info(f"Received message from {system_uuid}: {data}")
 
-                # Parse the incoming message as JSON
                 message = json.loads(data)
-
-                # Delegate message handling to DataHandler
                 await self.data_handler.handle_message(system_uuid, message)
 
         except WebSocketDisconnect:
@@ -115,6 +132,10 @@ manager = ConnectionManager()
 
 # FastAPI setup
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    await manager.connect_to_rabbit()
 
 # WebSocket endpoint
 @app.websocket("/ws/{system_uuid}")
