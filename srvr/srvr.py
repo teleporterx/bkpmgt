@@ -110,8 +110,11 @@ class ConnectionManager:
             # Delete the client's queue
             queue = self.queues.pop(system_uuid, None)
             if queue:
-                await queue.delete()  # Use the delete method on the queue
-                logger.info(f"Queue deleted: queue_{system_uuid}")
+                try:
+                    await queue.delete()  # Attempt to delete the queue
+                    logger.info(f"Queue deleted: queue_{system_uuid}")
+                except aio_pika.exceptions.ChannelPreconditionFailed:
+                    logger.warning(f"Queue {queue.name} not deleted: it contains pending tasks.")
             else:
                 logger.warning("Queue not found for deletion.")
 
