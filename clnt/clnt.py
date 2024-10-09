@@ -78,15 +78,18 @@ async def consume_messages(system_uuid, connection):
         }
 
         async for message in queue:
-            async with message.process():
-                message_data = json.loads(message.body.decode())
-                message_type = message_data.get("type")
-                handler = dispatch_table.get(message_type)
-                
-                if handler:
-                    await handler(message_data)
-                else:
-                    logger.warning(f"Unknown message type: {message_type}")
+            try:
+                async with message.process():
+                    message_data = json.loads(message.body.decode())
+                    message_type = message_data.get("type")
+                    handler = dispatch_table.get(message_type)
+
+                    if handler:
+                        await handler(message_data)
+                    else:
+                        logger.warning(f"Unknown message type: {message_type}")
+            except Exception as e:
+                logger.error(f"Error processing message: {e}")
 
 async def agent():
     bhive_uri = "ws://192.168.0.101:5000/ws/{system_uuid}"  # Point to the server IP
@@ -100,37 +103,49 @@ async def agent():
     backoff_factor = 2
     max_backoff_time = 60  # Cap the backoff time to 60 seconds
 
-    rabbit_connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
-    
-    consumer_task = asyncio.create_task(consume_messages(system_uuid, rabbit_connection))
+    rabbit_connection = None  # Initialize rabbit_connection here
 
     while running:
         try:
             uri = bhive_uri.format(system_uuid=system_uuid)  # Format URI with system_uuid
             async with websockets.connect(uri) as websocket:
                 logger.info("Connected to WebSocket server.")
-                retry_attempts = 0  # Reset retry attempts after a successful connection
 
-                # Agent main loop
-                while running:
-                    # You can send data to the WebSocket server if needed
-                    # Example: await websocket.send("Some data")
+                try:
+                    rabbit_connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
+                    consumer_task = asyncio.create_task(consume_messages(system_uuid, rabbit_connection))
 
-                    # Sleep for 5 seconds before the next operation
-                    await interruptible_sleep(5)
+                    retry_attempts = 0  # Reset retry attempts after a successful connection
+
+                    # Agent main loop
+                    while running:
+                        # You can send data to the WebSocket server if needed
+                        # Example: await websocket.send("Some data")
+
+                        # Sleep for 5 seconds before the next operation
+                        await interruptible_sleep(5)
+
+                except Exception as e:
+                    logger.error(f"Failed to connect to RabbitMQ: {e}")
+                    if 'consumer_task' in locals():
+                        consumer_task.cancel()
+                    if rabbit_connection:
+                        await rabbit_connection.close()
 
         except Exception as e:
-            logger.error(f"Looks like the server is down ☠️")
+            logger.error("Looks like the server &/ rabbit is down ☠️")
             if str(e):
                 logger.error(f"{e}")
             retry_attempts += 1
             wait_time = min(backoff_factor ** retry_attempts, max_backoff_time)  # Exponential backoff, capped
-            logger.info(f"Retrying in {wait_time} seconds...")
+            logger.info(f"Retrying WebSocket connection in {wait_time} seconds...")
             await interruptible_sleep(wait_time)
 
     # Cleanup: Cancel the consumer task and close the RabbitMQ connection
-    consumer_task.cancel()
-    await rabbit_connection.close()
+    if 'consumer_task' in locals():
+        consumer_task.cancel()
+    if rabbit_connection:
+        await rabbit_connection.close()
     logger.info("RabbitMQ connection closed.")
 
     if not running:
