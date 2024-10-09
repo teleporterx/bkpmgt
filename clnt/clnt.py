@@ -6,7 +6,9 @@ import json
 import signal
 import aio_pika
 from sys_utils.uuid_info import get_system_uuid
-import pexpect
+import subprocess
+import json
+import re
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -42,28 +44,33 @@ async def handle_repo_snapshots(params):
     Handle 'repo_snapshots' message type with restic.
     """
     logger.info(f"Received task to list snapshots for repo: {params['repo']}")
-    
+
     password = params.get('password')
-    command = ['./restic', '-r', params['repo'], 'snapshots', '--json']
-    
+    command = ['restic', '-r', params['repo'], 'snapshots', '--json']
+
     try:
-        # Start the command using pexpect
-        child = pexpect.spawn(' '.join(command))
-        child.expect('enter password for repository:')
-        child.sendline(password)  # Send the password
-        
-        # Capture output
-        child.expect(pexpect.EOF)
-        output = child.before.decode('utf-8')  # Get the output
-        
-        # Log the output
+        # Start the command using subprocess and provide the password via stdin
+        result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
+
+        if result.returncode != 0:
+            logger.error(f"Command failed with return code {result.returncode}: {result.stderr}")
+            return
+
+        output = result.stdout
+
+        # Log the raw command output
         logger.info(f"Command output:\n{output}")
 
-        # Optionally, you can parse the JSON output if needed
-        snapshots = json.loads(output)
-        logger.info(f"Parsed snapshots: {snapshots}")
+        # Use regex to find the part of the output that contains valid JSON
+        json_start = re.search(r'(\[|\{)', output)
+        if json_start:
+            json_data = output[json_start.start():]  # Extract JSON part of the output
+            snapshots = json.loads(json_data)  # Parse the JSON output
+            logger.info(f"Parsed snapshots: {snapshots}")
+        else:
+            logger.error("No JSON found in the command output.")
 
-    except pexpect.exceptions.TIMEOUT:
+    except subprocess.TimeoutExpired:
         logger.error("Timeout waiting for password prompt.")
     except json.JSONDecodeError:
         logger.error("Failed to decode JSON output from restic.")
