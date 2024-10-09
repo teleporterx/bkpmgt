@@ -31,6 +31,7 @@ class DataHandler:
             "repo_snapshots": self.handle_repo_snapshots,
             "snapshot_contents": self.handle_snapshot_contents,
         }
+        # Start the cleanup task
         asyncio.create_task(self.cleanup_old_data())
 
     async def cleanup_old_data(self):
@@ -77,27 +78,16 @@ class ConnectionManager:
             logger.info("Connected to RabbitMQ.")
         except Exception as e:
             logger.error(f"Failed to connect to RabbitMQ: {e}")
-            self.channel = None  # Ensure channel is None if connection fails
 
     async def create_queue(self, system_uuid: str):
-        if self.channel is None:
-            logger.error("Cannot create queue: RabbitMQ channel is not available.")
-            return None
-
         queue_name = f"queue_{system_uuid}"
-        await self.channel.set_qos(prefetch_count=1)  # Control message flow
+        await self.channel.set_qos(prefetch_count=1)  # Optional: Control message flow
         queue = await self.channel.declare_queue(queue_name, durable=True)
         self.queues[system_uuid] = queue  # Store the reference to the queue
         logger.info(f"Queue created: {queue_name}")
         return queue
 
     async def connect(self, websocket: WebSocket, system_uuid: str):
-        # Check if RabbitMQ is available before accepting the connection
-        if self.channel is None:
-            logger.warning(f"RabbitMQ is down. Denying connection for {system_uuid}.")
-            await websocket.close(code=1000)  # Close connection with normal closure
-            return
-
         await websocket.accept()
         self.active_connections[system_uuid] = websocket
         logger.info(f"Client {system_uuid} connected.")
@@ -106,9 +96,7 @@ class ConnectionManager:
             {"$set": {"status": "connected"}},
             upsert=True
         )
-        queue = await self.create_queue(system_uuid)  # Create a queue for this client
-        if queue is None:
-            await websocket.send_text("Error: Could not connect to RabbitMQ, please try again later.")
+        await self.create_queue(system_uuid)  # Create a queue for this client
 
     async def disconnect(self, system_uuid: str):
         websocket = self.active_connections.pop(system_uuid, None)
@@ -118,7 +106,7 @@ class ConnectionManager:
                 {"system_uuid": system_uuid},
                 {"$set": {"status": "disconnected"}}
             )
-
+            
             # Delete the client's queue
             queue = self.queues.pop(system_uuid, None)
             if queue:
@@ -141,9 +129,6 @@ class ConnectionManager:
 
         except WebSocketDisconnect:
             await self.disconnect(system_uuid)
-        except RuntimeError as e:
-            logger.error(f"RuntimeError: {e}. Likely due to a closed WebSocket.")
-            # Handle any additional cleanup if needed.
 
 manager = ConnectionManager()
 
@@ -158,8 +143,7 @@ async def startup_event():
 @app.websocket("/ws/{system_uuid}")
 async def websocket_endpoint(websocket: WebSocket, system_uuid: str):
     await manager.connect(websocket, system_uuid)
-    if websocket.client_state == "connected":  # Check if the WebSocket is connected
-        await manager.receive_data(websocket, system_uuid)
+    await manager.receive_data(websocket, system_uuid)
 
 # Strawberry GraphQL setup
 @strawberry.type
@@ -191,9 +175,6 @@ class Mutation:
         queue = manager.queues.get(system_uuid)
         if not queue:
             return "Error: Queue not found for the client"
-
-        if manager.channel is None:
-            return "Error: RabbitMQ is not available, please try again later."
 
         # Publish the task to the client's queue
         await manager.channel.default_exchange.publish(
