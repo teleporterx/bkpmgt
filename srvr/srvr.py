@@ -70,16 +70,22 @@ class ConnectionManager:
         self.rabbit_connection = None
         self.channel = None
         self.queues = {}
+        self.rabbit_connected = False  # Flag to track RabbitMQ connection status
 
     async def connect_to_rabbit(self):
         try:
             self.rabbit_connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
             self.channel = await self.rabbit_connection.channel()  # Create a channel
+            self.rabbit_connected = True  # Set the flag to True
             logger.info("Connected to RabbitMQ.")
         except Exception as e:
+            self.rabbit_connected = False  # Set the flag to False on failure
             logger.error(f"Failed to connect to RabbitMQ: {e}")
 
     async def create_queue(self, system_uuid: str):
+        if not self.rabbit_connected:
+            logger.warning(f"Cannot create queue for {system_uuid}: RabbitMQ is down.")
+            return None
         queue_name = f"queue_{system_uuid}"
         await self.channel.set_qos(prefetch_count=1)  # Optional: Control message flow
         queue = await self.channel.declare_queue(queue_name, durable=True)
@@ -88,6 +94,12 @@ class ConnectionManager:
         return queue
 
     async def connect(self, websocket: WebSocket, system_uuid: str):
+        # Check if RabbitMQ is connected
+        if not self.rabbit_connected:
+            logger.warning(f"Connection denied for {system_uuid}: RabbitMQ is down.")
+            await websocket.close(code=4000)  # Close the connection with a custom code
+            return
+
         await websocket.accept()
         self.active_connections[system_uuid] = websocket
         logger.info(f"Client {system_uuid} connected.")
@@ -129,6 +141,8 @@ class ConnectionManager:
 
         except WebSocketDisconnect:
             await self.disconnect(system_uuid)
+        except RuntimeError as e:
+            logger.error(f"Runtime error for {system_uuid}: {e}")
 
 manager = ConnectionManager()
 
