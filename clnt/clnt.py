@@ -39,17 +39,17 @@ async def interruptible_sleep(duration):
 
 async def handle_repo_snapshots(params):
     """
-    Handle 'repo_snapshots' message type.
+    Handle 'repo_snapshots' message type with restic.
     """
     logger.info(f"Received task to list snapshots for repo: {params['repo']}")
     
     password = params.get('password')
-    command = ['./rustic', '-r', params['repo'], 'snapshots', '--json']
+    command = ['./restic', '-r', params['repo'], 'snapshots', '--json']
     
     try:
         # Start the command using pexpect
         child = pexpect.spawn(' '.join(command))
-        child.expect('enter repository password:')
+        child.expect('enter password for repository:')
         child.sendline(password)  # Send the password
         
         # Capture output
@@ -58,6 +58,15 @@ async def handle_repo_snapshots(params):
         
         # Log the output
         logger.info(f"Command output:\n{output}")
+
+        # Optionally, you can parse the JSON output if needed
+        snapshots = json.loads(output)
+        logger.info(f"Parsed snapshots: {snapshots}")
+
+    except pexpect.exceptions.TIMEOUT:
+        logger.error("Timeout waiting for password prompt.")
+    except json.JSONDecodeError:
+        logger.error("Failed to decode JSON output from restic.")
     except Exception as e:
         logger.error(f"Failed to execute command: {e}")
 
