@@ -49,10 +49,10 @@ class DataHandler:
             logger.info(f"Deleted {result_snapshot_contents.deleted_count} old snapshot contents.")
 
     async def handle_repo_snapshots(self, system_uuid, message):
-        logger.info(f"Stored performance metrics for {system_uuid}")
+        logger.info(f"Stored repo snapshot response for {system_uuid}")
 
     async def handle_snapshot_contents(self, system_uuid, message):
-        logger.info(f"Stored process tree for {system_uuid}")
+        logger.info(f"Stored snapshot contents response for {system_uuid}")
 
     async def handle_message(self, system_uuid, message):
         message_type = message.get("type")

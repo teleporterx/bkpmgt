@@ -7,7 +7,6 @@ import signal
 import aio_pika
 from sys_utils.uuid_info import get_system_uuid
 import subprocess
-import json
 import re
 
 # Setup logging
@@ -39,9 +38,9 @@ async def interruptible_sleep(duration):
             break  # Stop sleeping if shutdown signal received
         await asyncio.sleep(step)
 
-async def handle_repo_snapshots(params):
+async def handle_repo_snapshots(params, websocket):
     """
-    Handle 'repo_snapshots' message type with restic.
+    Handle 'repo_snapshots' message type with restic and send results to the server.
     """
     logger.info(f"Received task to list snapshots for repo: {params['repo']}")
 
@@ -67,6 +66,17 @@ async def handle_repo_snapshots(params):
             json_data = output[json_start.start():]  # Extract JSON part of the output
             snapshots = json.loads(json_data)  # Parse the JSON output
             logger.info(f"Parsed snapshots: {snapshots}")
+
+            # Create a message to send to the server
+            message_to_server = {
+                "type": "repo_snapshots",
+                # "systemUuid": system_uuid,  # Send system UUID; this is will be resolved by the server WS
+                "snapshots": snapshots,
+            }
+
+            # Send the message over WebSocket
+            await websocket.send(json.dumps(message_to_server))
+
         else:
             logger.error("No JSON found in the command output.")
 
@@ -77,7 +87,7 @@ async def handle_repo_snapshots(params):
     except Exception as e:
         logger.error(f"Failed to execute command: {e}")
 
-async def consume_messages(system_uuid, connection):
+async def consume_messages(system_uuid, connection, websocket):
     """
     Consume messages from the RabbitMQ queue for the given system UUID.
     """
@@ -101,14 +111,14 @@ async def consume_messages(system_uuid, connection):
                     handler = dispatch_table.get(message_type)
 
                     if handler:
-                        await handler(message_data)
+                        await handler(message_data, websocket)  # Pass websocket instance
                     else:
                         logger.warning(f"Unknown message type: {message_type}")
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
 
 async def agent():
-    bhive_uri = "ws://192.168.0.101:5000/ws/{system_uuid}"  # Point to the server IP
+    bhive_uri = "ws://localhost:5000/ws/{system_uuid}"  # Point to the server IP
     system_uuid = get_system_uuid()
     
     if not system_uuid:
@@ -129,7 +139,7 @@ async def agent():
 
                 try:
                     rabbit_connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
-                    consumer_task = asyncio.create_task(consume_messages(system_uuid, rabbit_connection))
+                    consumer_task = asyncio.create_task(consume_messages(system_uuid, rabbit_connection, websocket))  # Pass websocket here
 
                     retry_attempts = 0  # Reset retry attempts after a successful connection
 
