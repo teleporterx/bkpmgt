@@ -46,7 +46,7 @@ async def handle_repo_snapshots(params):
     logger.info(f"Received task to list snapshots for repo: {params['repo']}")
 
     password = params.get('password')
-    command = ['restic', '-r', params['repo'], 'snapshots', '--json']
+    command = ['./restic', '-r', params['repo'], 'snapshots', '--json']
 
     try:
         # Start the command using subprocess and provide the password via stdin
