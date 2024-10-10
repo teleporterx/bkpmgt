@@ -147,7 +147,12 @@ async def agent():
                     while running:
                         # You can send data to the WebSocket server if needed
                         # Example: await websocket.send("Some data")
+                        # Or some form of inbound message handling
 
+                        if not websocket.open:
+                            logger.warning("WebSocket connection closed.")
+                            break;
+                        
                         # Sleep for 5 seconds before the next operation
                         await interruptible_sleep(5)
 

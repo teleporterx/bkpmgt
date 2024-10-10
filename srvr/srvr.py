@@ -123,16 +123,17 @@ class ConnectionManager:
             queue = self.queues.pop(system_uuid, None)
             if queue:
                 try:
-                    await queue.delete()  # Attempt to delete the queue
-                    logger.info(f"Queue deleted: queue_{system_uuid}")
-                except aio_pika.exceptions.ChannelPreconditionFailed:
-                    logger.warning(f"Queue {queue.name} not deleted: it contains pending tasks.")
+                    # await queue.delete()  # Attempt to delete the queue: OG
+                    # logger.info(f"Queue deleted: queue_{system_uuid}")
+                    await self.channel.queue_delete(queue.name)  # Directly delete the queue
+                    logger.info(f"Queue forcefully deleted: queue_{system_uuid}")
+
+                except Exception as e:
+                    logger.error(f"Failed to forcefully delete queue {queue.name}: {e}")
+                # except aio_pika.exceptions.ChannelPreconditionFailed:
+                #     logger.warning(f"Queue {queue.name} not deleted: it contains pending tasks.")
             else:
                 logger.warning("Queue not found for deletion.")
-
-    async def disconnect_all(self):
-        for system_uuid in list(self.active_connections.keys()):
-            await self.disconnect(system_uuid)
 
     async def receive_data(self, websocket: WebSocket, system_uuid: str):
         try:
@@ -159,8 +160,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info("Shutting down server... Disconnecting all clients.")
-    await manager.disconnect_all()
+    logger.info("Shutting down server... /ws/ will be closed")
 
 # WebSocket endpoint
 @app.websocket("/ws/{system_uuid}")
