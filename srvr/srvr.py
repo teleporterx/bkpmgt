@@ -130,6 +130,10 @@ class ConnectionManager:
             else:
                 logger.warning("Queue not found for deletion.")
 
+    async def disconnect_all(self):
+        for system_uuid in list(self.active_connections.keys()):
+            await self.disconnect(system_uuid)
+
     async def receive_data(self, websocket: WebSocket, system_uuid: str):
         try:
             while True:
@@ -152,6 +156,11 @@ app = FastAPI()
 @app.on_event("startup")
 async def startup_event():
     await manager.connect_to_rabbit()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down server... Disconnecting all clients.")
+    await manager.disconnect_all()
 
 # WebSocket endpoint
 @app.websocket("/ws/{system_uuid}")
