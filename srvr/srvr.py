@@ -41,7 +41,7 @@ class DataHandler:
             logger.info(f"Cutoff time for deletion: {cutoff_time.isoformat()}")
 
             # Cleanup old repo snapshots
-            result_repo_snapshots = await self.repo_snapshots_collection.delete_many({"timestamp": {"$lt": cutoff_time.isoformat()}})
+            result_repo_snapshots = await self.repo_snapshots_collection.delete_many({"response_timestamp": {"$lt": cutoff_time.isoformat()}})
             logger.info(f"Deleted {result_repo_snapshots.deleted_count} old repo snapshots.")
 
             # Cleanup old snapshot contents
@@ -49,7 +49,36 @@ class DataHandler:
             logger.info(f"Deleted {result_snapshot_contents.deleted_count} old snapshot contents.")
 
     async def handle_repo_snapshots(self, system_uuid, message):
-        logger.info(f"Stored repo snapshot response for {system_uuid}")
+        snapshots = message.get("snapshots", [])
+        repo_path = message.get("repo_path")  # Retrieve the repo name
+        response_timestamp = datetime.datetime.utcnow().isoformat()  # Get current timestamp
+
+        # Check if there's already an existing document for this systemUuid and repo_path
+        existing_document = await self.repo_snapshots_collection.find_one({
+            "systemUuid": system_uuid,
+            "repo_path": repo_path
+        })
+        if existing_document:
+            # Compare existing snapshots with new snapshots
+            if existing_document.get("snapshots") == snapshots:
+                logger.info(f"No changes detected for {system_uuid} on repo path {repo_path}. Skipping update.")
+                return  # No need to update if snapshots are the same
+        # Document structure to insert/upsert
+        document = {
+            "systemUuid": system_uuid,
+            "response_timestamp": response_timestamp,
+            "repo_path": repo_path,
+            "snapshots": snapshots  # Directly include snapshots
+        }
+
+        # Upsert the document (insert or update)
+        await self.repo_snapshots_collection.update_one(
+            {"systemUuid": system_uuid, "repo_path": repo_path},  # Query to find the document
+            {"$set": document},  # Update the document with the new data
+            upsert=True  # Create the document if it does not exist
+        )
+        
+        logger.info(f"Stored repo snapshot response for {system_uuid} for repo path {repo_path}")
 
     async def handle_snapshot_contents(self, system_uuid, message):
         logger.info(f"Stored snapshot contents response for {system_uuid}")

@@ -71,6 +71,7 @@ async def handle_repo_snapshots(params, websocket):
             message_to_server = {
                 "type": "repo_snapshots",
                 # "systemUuid": system_uuid,  # Send system UUID; this is will be resolved by the server WS
+                "repo_path": params['repo'],
                 "snapshots": snapshots,
             }
 
