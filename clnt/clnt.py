@@ -18,19 +18,44 @@ logger = logging.getLogger(__name__)
 running = True
 
 # Authentication Setup
-async def obtain_jwt(system_uuid, password):
+async def obtain_jwt(system_uuid, password, max_retries=5, backoff_factor=2, max_backoff_time=120):
     """
     Obtain a JWT token by authenticating with the server.
+    Retries on failure with exponential backoff.
     """
     url = "http://localhost:5000/token"  # Update with your server URL
-    response = requests.post(url, json={"system_uuid": system_uuid, "password": password})
-    
-    if response.status_code == 200:
-        token_data = response.json()
-        return token_data["access_token"]
-    else:
-        logger.error(f"Failed to obtain JWT: {response.text}")
-        return None
+    retry_attempts = 0
+
+    while retry_attempts < max_retries:
+        if not running:
+            logger.info("Shutdown triggered during auth. routine...")
+            return None  # Exit if shutdown signal received
+
+        try:
+            response = requests.post(url, json={"system_uuid": system_uuid, "password": password})
+            response.raise_for_status()  # Raise an error for bad responses
+            
+            token_data = response.json()
+            return token_data["access_token"]
+
+        except ConnectionError as e:
+            logger.error("Could not connect to the server. Please make sure it is running.")
+            logger.error(f"Connection error: {e}")
+
+        except requests.ConnectionError:
+            logger.error("Connection refused. The server might be down?? ☠️")
+
+        except Exception as e:
+            logger.error("Seems to be a more complex issue ;_;")
+            logger.error(f"{e}")
+
+        retry_attempts += 1
+        wait_time = min(backoff_factor ** retry_attempts, max_backoff_time)
+        logger.info(f"Retrying auth. mechanism in {wait_time} seconds...") # retrying to obtain JWT
+        await interruptible_sleep(wait_time)
+
+    logger.error("Failed to authenticate despite multiple attempts.")
+    return None
 
 # Shutdown handler
 def handle_shutdown(signum, frame):
