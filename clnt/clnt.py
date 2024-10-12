@@ -8,6 +8,7 @@ import aio_pika
 from sys_utils.uuid_info import get_system_uuid
 import subprocess
 import re
+import requests  # Import requests for HTTP calls
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +17,22 @@ logger = logging.getLogger(__name__)
 # Global flag to control the running state of the agent
 running = True
 
+# Authentication Setup
+async def obtain_jwt(system_uuid, password):
+    """
+    Obtain a JWT token by authenticating with the server.
+    """
+    url = "http://localhost:5000/token"  # Update with your server URL
+    response = requests.post(url, json={"system_uuid": system_uuid, "password": password})
+    
+    if response.status_code == 200:
+        token_data = response.json()
+        return token_data["access_token"]
+    else:
+        logger.error(f"Failed to obtain JWT: {response.text}")
+        return None
+
+# Shutdown handler
 def handle_shutdown(signum, frame):
     """
     Signal handler to gracefully shut down the agent process.
@@ -119,13 +136,20 @@ async def consume_messages(system_uuid, connection, websocket):
                 logger.error(f"Error processing message: {e}")
 
 async def agent():
-    bhive_uri = "ws://localhost:5000/ws/{system_uuid}"  # Point to the server IP
     system_uuid = get_system_uuid()
     
     if not system_uuid:
         logger.error("System UUID not found! Exiting...")
         return
+    # PATCH: Use dotenv or other mechanisms when deploying to production
+    password = "deepdefend_authpass"
+    token = await obtain_jwt(system_uuid, password)
+    if not token:
+        logger.error("Authentication routine failed!! Exiting...") # Failed to obtain JWT token
+        return
     
+    bhive_uri = f"ws://localhost:5000/ws/{system_uuid}?token={token}"  # Include the token in the URI
+
     retry_attempts = 0
     backoff_factor = 2
     max_backoff_time = 60  # Cap the backoff time to 60 seconds
