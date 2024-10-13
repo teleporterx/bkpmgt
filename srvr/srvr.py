@@ -63,16 +63,16 @@ class DataHandler:
         while True:
             await asyncio.sleep(60)  # Wait for 1 min
             cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=1)  # Updated line
-            logger.info(f"Cutoff time for deletion: {cutoff_time.isoformat()}")
+            # logger.info(f"Cutoff time for deletion: {cutoff_time.isoformat()}")
 
             # Cleanup old repo snapshots
             # Directly use the datetime object for the query
             result_repo_snapshots = await self.repo_snapshots_collection.delete_many({"response_timestamp": {"$lt": cutoff_time}})
-            logger.info(f"Deleted {result_repo_snapshots.deleted_count} old repo snapshots.")
+            # logger.info(f"Deleted {result_repo_snapshots.deleted_count} old repo snapshots.")
 
             # Cleanup old snapshot contents
             result_snapshot_contents = await self.snapshot_contents_collection.delete_many({"timestamp": {"$lt": cutoff_time}})
-            logger.info(f"Deleted {result_snapshot_contents.deleted_count} old snapshot contents.")
+            # logger.info(f"Deleted {result_snapshot_contents.deleted_count} old snapshot contents.")
 
     async def handle_repo_snapshots(self, system_uuid, message):
         snapshots = message.get("snapshots", [])

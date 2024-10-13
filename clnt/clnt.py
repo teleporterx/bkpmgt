@@ -9,6 +9,10 @@ from sys_utils.uuid_info import get_system_uuid
 import subprocess
 import re
 import requests  # Import requests for HTTP calls
+from fastapi import FastAPI
+import uvicorn
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +20,18 @@ logger = logging.getLogger(__name__)
 
 # Global flag to control the running state of the agent
 running = True
+
+# API for Web-GUI
+app = FastAPI()
+
+# Mount static files like CSS and images
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    # Return the static index.html file from the static directory
+    with open("static/index.html") as f:
+        return HTMLResponse(content=f.read())
 
 # Authentication Setup
 async def obtain_jwt(system_uuid, password, max_retries=5, backoff_factor=2, max_backoff_time=120):
@@ -232,9 +248,13 @@ async def agent():
     if not running:
         logger.info("Graceful shutdown target reached...")
 
-# Call to start agent
-def run_agent():
-    asyncio.run(agent())
+async def run_uvicorn():
+    config = uvicorn.Config(app, host="127.0.0.1", port=8000, reload=True)
+    server = uvicorn.Server(config)
+    await server.serve()
+
+async def main():
+    await asyncio.gather(agent(), run_uvicorn())
 
 if __name__ == "__main__":
-    run_agent()
+    asyncio.run(main())
