@@ -13,6 +13,8 @@ from fastapi import FastAPI
 import uvicorn
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+import os
+import sys
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -73,7 +75,7 @@ async def obtain_jwt(system_uuid, password, max_retries=5, backoff_factor=2, max
     logger.error("Failed to authenticate despite multiple attempts.")
     return None
 
-# Shutdown handler
+# Shutdown & Restart handlers
 def handle_shutdown(signum, frame):
     """
     Signal handler to gracefully shut down the agent process.
@@ -85,6 +87,36 @@ def handle_shutdown(signum, frame):
 # Register signal handlers for graceful shutdown
 signal.signal(signal.SIGINT, handle_shutdown)  # Handle Ctrl+C
 signal.signal(signal.SIGTERM, handle_shutdown)  # Handle termination signal
+
+@app.post("/shutdown")
+async def shutdown():
+    """
+    Endpoint to trigger the shutdown process.
+    """
+    os.kill(os.getpid(), signal.SIGINT)
+    return {"message": "Shutdown initiated."}
+
+def handle_restart(signum, frame):
+    """
+    Signal handler to restart the agent process.
+    """
+    logger.info("Received restart signal. Restarting...")
+    # Set a flag or perform any cleanup needed before restarting
+    os.execv(sys.executable, ['python'] + sys.argv)  # Restart the application
+
+async def restart_agent():
+    os.execv(sys.executable, ['python'] + sys.argv)
+
+@app.post("/restart")
+async def restart():
+    """
+    Endpoint to trigger the restart process.
+    """
+    # Respond to the request first
+    response = {"message": "Restart initiated."}
+    await asyncio.sleep(0.1)  # Delay to ensure response is sent
+    asyncio.create_task(restart_agent())  # Restart the agent in the background
+    return response
 
 async def interruptible_sleep(duration):
     """

@@ -55,8 +55,8 @@ p {
 .waves {
     position: relative;
     width: 100%;
-    height: 15vh;
-    margin-bottom: -7px; /* Fix for safari gap */
+    height: 20vh;
+    margin-bottom: -20px; /* Fix for safari gap */
     min-height: 100px;
     max-height: 150px;
 }
@@ -78,7 +78,6 @@ p {
     border-radius: 10px; /* Rounded corners */
     width: fit-content; /* Fit the width to the buttons */
 }
-  
 
 .action-button {
     background-color: rgb(255, 255, 255); /* Button color */
@@ -95,8 +94,33 @@ p {
     background-color: rgba(255, 255, 255, 0.8); /* Change button color on hover */
 }
 
-/* Animation */
+/* Shutdown Icon */
+.shutdown-container {
+    position: absolute;
+    top: 20px; /* Adjust top position */
+    right: 20px; /* Adjust right position */
+}
 
+.shutdown-icon {
+    font-size: 30px; /* Adjust icon size */
+    cursor: pointer; /* Pointer cursor on hover */
+    color: white; /* Change to desired color */
+}
+
+/* Restart Icon */
+.restart-container {
+    position: absolute;
+    top: 20px; /* Adjust top position */
+    right: 80px; /* Position it next to the shutdown icon */
+}
+
+.restart-icon {
+    font-size: 30px; /* Adjust icon size */
+    cursor: pointer; /* Pointer cursor on hover */
+    color: white; /* Change to desired color */
+}
+
+/* Animation */
 .parallax > use {
     animation: move-forever 25s cubic-bezier(.55, .5, .45, .5) infinite;
 }
