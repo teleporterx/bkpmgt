@@ -16,16 +16,19 @@ MONGO_DETAILS = "mongodb://localhost:27017"
 client = AsyncIOMotorClient(MONGO_DETAILS)
 db = client["bkpmgt_db"]
 status_collection = db["client_status"]
-repo_snapshots_collection = db["repo_snapshots"]
+initialized_local_repo_collection = db["initialized_local_repo_collection"] 
+local_repo_snapshots_collection = db["local_repo_snapshots"]
 snapshot_contents_collection = db["snapshot_contents"]
 
 # Data Handler class
 class DataHandler:
     def __init__(self):
-        self.repo_snapshots_collection = repo_snapshots_collection
+        self.initialized_local_repo_collection = initialized_local_repo_collection
+        self.repo_snapshots_collection = local_repo_snapshots_collection
         self.snapshot_contents_collection = snapshot_contents_collection
         self.dispatch_table = {
-            "repo_snapshots": self.handle_repo_snapshots,
+            "response_init_local_repo": self.handle_response_init_local_repo,
+            "response_local_repo_snapshots": self.handle_response_local_repo_snapshots,
             "snapshot_contents": self.handle_snapshot_contents,
         }
         # Start the cleanup task
@@ -46,7 +49,34 @@ class DataHandler:
             result_snapshot_contents = await self.snapshot_contents_collection.delete_many({"timestamp": {"$lt": cutoff_time}})
             # logger.info(f"Deleted {result_snapshot_contents.deleted_count} old snapshot contents.")
 
-    async def handle_repo_snapshots(self, system_uuid, message):
+    async def handle_response_init_local_repo(self, system_uuid, message):
+        repo_path = message.get("repo_path")
+        response_timestamp = datetime.now(timezone.utc)
+        summary = message.get("summary", {})
+
+        # Log or process the repo initialization as needed
+        logger.info(f"Repo initialed for {system_uuid} at {repo_path}: {summary}")
+
+        # Store the repo initialization data in MongoDB
+        document = {
+            "systemUuid": system_uuid,
+            "response_timestamp": response_timestamp,
+            "repo_path": repo_path,
+            "summary": summary,
+        }
+
+        # No need to check for existing records as client-side handling will ever allow only one repo to exist in absolute path
+        try:
+            await self.initialized_local_repo_collection.update_one(
+                {"systemUuid": system_uuid, "repo_path": repo_path},
+                {"$set": document},
+                upsert=True
+            )
+            logger.info(f"Stored repo initialization data for {system_uuid} in path {repo_path}")
+        except Exception as e:
+            logger.error(f"Error storing repo initialization data: {e}")
+
+    async def handle_response_local_repo_snapshots(self, system_uuid, message):
         snapshots = message.get("snapshots", [])
         repo_path = message.get("repo_path")  # Retrieve the repo name
         response_timestamp = datetime.now(timezone.utc)  # Get current timestamp

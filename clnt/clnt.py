@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import os
 import sys
-from backup_utils import handle_repo_snapshots
+from backup_utils import *
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -139,7 +139,8 @@ async def consume_messages(system_uuid, connection, websocket):
 
         # Dispatch table for handling message types
         dispatch_table = {
-            "repo_snapshots": handle_repo_snapshots,
+            "init_local_repo": handle_init_local_repo,
+            "get_local_repo_snapshots": handle_get_local_repo_snapshots,
         }
 
         async for message in queue:

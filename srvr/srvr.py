@@ -17,8 +17,6 @@ MONGO_DETAILS = "mongodb://localhost:27017"
 client = AsyncIOMotorClient(MONGO_DETAILS)
 db = client["bkpmgt_db"]
 status_collection = db["client_status"]
-repo_snapshots_collection = db["repo_snapshots"]
-snapshot_contents_collection = db["snapshot_contents"]
 
 # FastAPI setup
 app = FastAPI()
