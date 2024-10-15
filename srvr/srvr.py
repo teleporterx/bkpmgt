@@ -9,8 +9,7 @@ import json
 import datetime
 from datetime import datetime, timedelta, timezone
 import aio_pika
-import jwt
-from pydantic import BaseModel
+from auth import auth_router, verify_access_token
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -23,29 +22,6 @@ db = client["bkpmgt_db"]
 status_collection = db["client_status"]
 repo_snapshots_collection = db["repo_snapshots"]
 snapshot_contents_collection = db["snapshot_contents"]
-
-# Authentication setup
-# PATCH: Use python-dotenv for secret key when deploying to production
-SECRET_KEY = "84Cfe@GjsysF?s/u(o`nZ@Ak*W@0^h"  # Use a strong secret key
-ALGORITHM = "HS256"  # JWT algorithm
-ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Token expiration time
-
-def create_access_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta  # Updated line
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  # Updated line
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def verify_access_token(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except jwt.PyJWTError:
-        return None
 
 # Data Handler class
 class DataHandler:
@@ -208,6 +184,8 @@ manager = ConnectionManager()
 
 # FastAPI setup
 app = FastAPI()
+# REST: Token acquisition request setup & endpoint for user authentication
+app.include_router(auth_router)
 
 @app.on_event("startup")
 async def startup_event():
@@ -216,32 +194,6 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down server... /ws/ will be closed")
-
-# REST: Token acquisition request setup & endpoint for user authentication
-
-class TokenRequest(BaseModel):
-    system_uuid: str
-    password: str
-
-@app.post("/token")
-async def login(token_request: TokenRequest):
-    # Access the data using the model
-    system_uuid = token_request.system_uuid
-    password = token_request.password
-
-    # Validate user credentials
-    if not await validate_user_credentials(system_uuid, password):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-
-    # Create and return the token
-    token = create_access_token(data={"sub": system_uuid})
-    return {"access_token": token, "token_type": "bearer"}
-
-async def validate_user_credentials(system_uuid: str, password: str) -> bool:
-    # Implement logic to validate the user credentials
-    # For example, check against a database
-    # The following compares password with a hardcoded password and returns bool
-    return password == "deepdefend_authpass"  # Replace with actual validation later
 
 # WebSocket endpoint
 @app.websocket("/ws/{system_uuid}")
