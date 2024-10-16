@@ -141,6 +141,7 @@ async def consume_messages(system_uuid, connection, websocket):
         dispatch_table = {
             "init_local_repo": handle_init_local_repo,
             "get_local_repo_snapshots": handle_get_local_repo_snapshots,
+            "init_s3_repo": handle_init_s3_repo,
         }
 
         async for message in queue:
