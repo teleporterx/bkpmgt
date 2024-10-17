@@ -63,7 +63,6 @@ async def handle_init_local_repo(params, websocket):
             # Create a message to send to the server
             message_to_server = {
                 "type": "response_init_local_repo",  # Define the message type for repo initialization
-                "repo_path": repo_path,
                 "summary": init_response  # Send the parsed JSON output as the summary
             }
 
@@ -129,7 +128,7 @@ async def handle_get_local_repo_snapshots(params, websocket):
             # Send the message over WebSocket
             await websocket.send(json.dumps(message_to_server))
 
-        else:
+        else: # Future: create a message payload with failure output
             logger.error("No JSON found in the command output.")
 
     except subprocess.TimeoutExpired:
@@ -183,7 +182,7 @@ async def handle_init_s3_repo(params, websocket):
         elif e.response['Error']['Code'] == 'InvalidAccessKeyId':
             logger.error("Invalid AWS Access Key ID provided.")
             return {"error": "Invalid AWS Access Key ID."}
-        else:
+        else: # Will probably get triggered due to invalid temporary AWS credentials
             logger.error(f"Failed to access bucket: {e}")
             return {"error": str(e)}
 
@@ -214,6 +213,17 @@ async def handle_init_s3_repo(params, websocket):
         # Log success message
         logger.info(f"Successfully initialized S3 restic repository at {restic_repo}")
         logger.info(f"Command output:\n{result.stdout}")
+
+        # Create a message to send to the server
+        message_to_server = {
+            "type": "response_init_s3_repo",  # Define the message type for S3 repo initialization
+            "summary": json.loads(result.stdout)  # Include the parsed JSON output
+        }
+
+        # Send the message to the server over WebSocket
+        await websocket.send(json.dumps(message_to_server, indent=2))
+        logger.info(f"S3 repo initialization data sent to server for repo: {restic_repo}")
+
         return {"message": f"Successfully initialized S3 restic repository at {restic_repo}"}
 
     except subprocess.CalledProcessError as e:
