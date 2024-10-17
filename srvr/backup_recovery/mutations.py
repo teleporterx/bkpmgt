@@ -2,6 +2,12 @@ import strawberry
 import json
 import aio_pika
 from comms import manager # imports the manager object from the main script
+from backup_recovery.s3_helper import s3_restic_funcs
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Mutations for task allocation
 @strawberry.type
@@ -71,7 +77,6 @@ class BackupMutations:
     @strawberry.mutation
     async def init_s3_repo(
         self,
-        system_uuid: str,
         aws_access_key_id: str,
         aws_secret_access_key: str,
         region: str,
@@ -79,30 +84,24 @@ class BackupMutations:
         password: str,
         aws_session_token: str = None,
     ) -> str:
-        # Check if the client is connected
-        if system_uuid not in manager.active_connections:
-            return "Error: Client not connected"
-
-        # Create a task message for initializing the repository
-        task_message = {
-            "type": "init_s3_repo",
-            "aws_access_key_id": aws_access_key_id,
-            "aws_secret_access_key": aws_secret_access_key,
-            "region": region,
-            "bucket_name": bucket_name,
-            "password": password,
-            "aws_session_token": aws_session_token,  # Include session token if provided
-        }
-
-        # Get the client's queue
-        queue = manager.queues.get(system_uuid)
-        if not queue:
-            return "Error: Queue not found for the client"
-
-        # Publish the task to the client's queue
-        await manager.channel.default_exchange.publish(
-            aio_pika.Message(body=json.dumps(task_message).encode()),
-            routing_key=queue.name  # Use the name of the queue as the routing key
-        )
-
-        return f"Task allocated to initialize s3 repo: {bucket_name}"
+        
+        try:
+            result = await s3_restic_funcs(
+                aws_access_key_id, 
+                aws_secret_access_key, 
+                region, 
+                bucket_name, 
+                password, 
+                aws_session_token, 
+                "init"
+            )
+            
+            # Check if the result is an error
+            if isinstance(result, dict) and "error" in result:
+                logger.error(f"Error during S3 operation: {result['error']}")
+                return f"Error: {result['error']}"
+    
+            return result  # This should be a success message
+        except Exception as e:
+            logger.error(f"Unexpected error in mutation: {e}")
+            return "An unexpected error occurred."
