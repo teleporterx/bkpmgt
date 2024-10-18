@@ -3,6 +3,8 @@ import botocore # for exception handling
 import logging
 import subprocess
 import os
+import json
+from comms import DataHandler # imports the DataHandler class from the main script
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -97,10 +99,19 @@ async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, buc
             return f"Command failed: {result.stderr}"
 
         logger.info(f"Successfully executed {func_type} operation at {restic_repo}")
-        return f"Successfully executed {func_type} operation at {restic_repo}"
+        #return f"Successfully executed {func_type} operation at {restic_repo}"
     
-        message = json.loads(result.stdout)
+        # Prepare the message based on func_type
+        messages = {
+            "init": {"type": "response_init_s3_repo", "summary": json.loads(result.stdout)},
+            "snapshots": {"type": "response_s3_repo_snapshots", "s3_url": restic_repo, "snapshots": json.loads(result.stdout)},
+        }
+
+        data_handler = DataHandler()
         # Send message to backup handlers.py to store results in mongo
+        await data_handler.handle_message("", messages[func_type])
+        return f"Successfully executed {func_type} operation at {restic_repo}"
+        
     
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to run command: {e}")
