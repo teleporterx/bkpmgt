@@ -8,7 +8,7 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def s3_restic_funcs(aws_access_key_id, aws_secret_access_key, region, bucket_name, password, aws_session_token, func_type):
+async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, bucket_name, password, aws_session_token, func_type):
 
     if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name or not password:
         return {"error": "Missing essential initialization data!"}
@@ -61,6 +61,12 @@ async def s3_restic_funcs(aws_access_key_id, aws_secret_access_key, region, buck
 
         # Set environment variables using env as a dict
         env = os.environ.copy()  # Copy existing environment variables
+        """
+        # For credentials
+        ```
+        aws sts assume-role --role-arn arn:aws:iam::541109128454:role/ResticS3AccessRole --role-session-name RESTIC_SESSION_1
+        ```
+        """
         env.update({
             'AWS_ACCESS_KEY_ID': aws_access_key_id,
             'AWS_SECRET_ACCESS_KEY': aws_secret_access_key,
@@ -69,11 +75,15 @@ async def s3_restic_funcs(aws_access_key_id, aws_secret_access_key, region, buck
             'RESTIC_PASSWORD': password
         })
 
+        commands = {
+            "init": ['./backup_recovery/restic', 'init', '--json'],
+            "snapshots": ['./backup_recovery/restic', 'snapshots', '--json'],
+            # Add more func_types and their commands here
+        }
+
         # Determine the command based on func_type
-        if func_type == "init":
-            command = ['./backup_recovery/restic', 'init', '--json']
-        elif func_type == "snapshots":
-            command = ['./backup_recovery/restic', 'snapshots', '--json']
+        if func_type in commands:
+            command = commands[func_type]
         else:
             return {"error": f"Unsupported func_type: {func_type}"}
 
@@ -88,6 +98,9 @@ async def s3_restic_funcs(aws_access_key_id, aws_secret_access_key, region, buck
 
         logger.info(f"Successfully executed {func_type} operation at {restic_repo}")
         return f"Successfully executed {func_type} operation at {restic_repo}"
+    
+        message = json.loads(result.stdout)
+        # Send message to backup handlers.py to store results in mongo
     
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to run command: {e}")

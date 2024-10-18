@@ -2,7 +2,7 @@ import strawberry
 import json
 import aio_pika
 from comms import manager # imports the manager object from the main script
-from backup_recovery.s3_helper import s3_restic_funcs
+from backup_recovery.s3_helper import s3_restic_helper
 import logging
 
 # Setup logging
@@ -86,7 +86,7 @@ class BackupMutations:
     ) -> str:
         
         try:
-            result = await s3_restic_funcs(
+            result = await s3_restic_helper(
                 aws_access_key_id, 
                 aws_secret_access_key, 
                 region, 
@@ -94,6 +94,38 @@ class BackupMutations:
                 password, 
                 aws_session_token, 
                 "init"
+            )
+            
+            # Check if the result is an error
+            if isinstance(result, dict) and "error" in result:
+                logger.error(f"Error during S3 operation: {result['error']}")
+                return f"Error: {result['error']}"
+    
+            return result  # This should be a success message
+        except Exception as e:
+            logger.error(f"Unexpected error in mutation: {e}")
+            return "An unexpected error occurred."
+        
+    @strawberry.mutation
+    async def get_s3_repo_snapshots(
+        self,
+        aws_access_key_id: str,
+        aws_secret_access_key: str,
+        region: str,
+        bucket_name: str,
+        password: str,
+        aws_session_token: str = None,
+    ) -> str:
+
+        try:
+            result = await s3_restic_helper(
+                aws_access_key_id, 
+                aws_secret_access_key, 
+                region, 
+                bucket_name, 
+                password, 
+                aws_session_token, 
+                "snapshots"
             )
             
             # Check if the result is an error
