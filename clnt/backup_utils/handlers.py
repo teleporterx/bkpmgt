@@ -126,7 +126,7 @@ async def handle_get_local_repo_snapshots(params, websocket):
             }
 
             # Send the message over WebSocket
-            await websocket.send(json.dumps(message_to_server))
+            await websocket.send(json.dumps(message_to_server, indent=2))
 
         else: # Future: create a message payload with failure output
             logger.error("No JSON found in the command output.")
@@ -135,5 +135,85 @@ async def handle_get_local_repo_snapshots(params, websocket):
         logger.error("Timeout waiting for password prompt.")
     except json.JSONDecodeError:
         logger.error("Failed to decode JSON output from restic.")
+    except Exception as e:
+        logger.error(f"Failed to execute command: {e}")
+
+async def handle_do_local_repo_backup(params, websocket):
+    logger.info(f"Received request to perform local repo backup for repo: {params['repo_path']}")
+
+    repo_path = params.get('repo_path')
+    password = params.get('password')
+    paths = params.get('paths', [])  # Get the paths for backup
+    exclude = params.get('exclude', [])  # Optional exclude filters
+    custom_options = params.get('custom_options', [])  # Any additional options
+    """
+    tags = params.get('tags', [])  # Optional tags
+    """
+
+    if not password or not repo_path:
+        logger.error("Password and repository path are required.")
+        return  # Log the error and return
+
+    # Build the backup command
+    command = ['./restic', '-r', repo_path, 'backup', '--json'] + paths
+
+    # Append each exclusion separately
+    for ex in exclude:
+        command += ['--exclude', ex]
+    
+    if custom_options:
+        command += custom_options
+    
+    """
+    if include:
+        command += ['--include'] + include
+    if tags:
+        command += ['--tag'] + tags
+    """
+    
+    logger.info(f"this is the command that would be executed {command}")
+
+    try:
+        # Start the command using subprocess and provide the password via stdin
+        result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
+
+        if result.returncode != 0:
+            logger.error(f"Command failed with return code {result.returncode}: {result.stderr}")
+            return
+
+        output = result.stdout
+
+        # Log the raw command output
+        logger.info(f"Command output:\n{output}")
+
+        # Split output into lines and filter for the summary message
+        summary_message = None
+        for line in output.splitlines():
+            try:
+                message = json.loads(line)
+                if message.get("message_type") == "summary":
+                    summary_message = message
+                    break  # Stop after finding the first summary
+            except json.JSONDecodeError:
+                continue  # Skip non-JSON lines
+
+        if summary_message:
+            logger.info(f"Parsed backup summary output: {summary_message}")
+
+            # Create a message to send to the server
+            message_to_server = {
+                "type": "response_local_repo_backup",  # Define the message type for backup
+                "repo_path": repo_path,
+                "backup_output": summary_message,
+            }
+
+            # Send the message over WebSocket
+            await websocket.send(json.dumps(message_to_server, indent=2))
+            logger.info(f"Backup data sent to server for repo: {repo_path}")
+        else:
+            logger.error("No JSON found in the command output.")
+
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout while waiting for the backup command.")
     except Exception as e:
         logger.error(f"Failed to execute command: {e}")

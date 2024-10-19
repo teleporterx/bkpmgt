@@ -4,6 +4,7 @@ import aio_pika
 from comms import manager # imports the manager object from the main script
 from backup_recovery.s3_helper import s3_restic_helper
 import logging
+from typing import List
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -137,3 +138,44 @@ class BackupMutations:
         except Exception as e:
             logger.error(f"Unexpected error in mutation: {e}")
             return "An unexpected error occurred."
+
+    @strawberry.mutation
+    async def do_local_repo_backup(
+        self,
+        system_uuid: str,
+        repo_path: str,
+        password: str,
+        paths: List[str],
+        exclude: List[str] = None,
+        tags: List[str] = None,
+        custom_options: List[str] = None,
+    ) -> str:
+        # Check if the client is connected
+        if system_uuid not in manager.active_connections:
+            return "Error: Client not connected"
+        
+        # Validation for input data goes here
+
+        # Create a task message for backup
+        task_message = {
+            "type": "do_local_repo_backup",
+            "repo_path": repo_path,
+            "password": password,
+            "paths": paths,
+            "exclude": exclude or [],
+            "tags": tags or [],
+            "custom_options": custom_options or [],
+        }
+
+        # Get the client's queue
+        queue = manager.queues.get(system_uuid)
+        if not queue:
+            return "Error: Queue not found for the client"
+
+        # Publish the task to the client's queue
+        await manager.channel.default_exchange.publish(
+            aio_pika.Message(body=json.dumps(task_message).encode()),
+            routing_key=queue.name  # Use the name of the queue as the routing key
+        )
+
+        return f"Task allocated to retrieve snapshots for local repo: {repo_path}"
