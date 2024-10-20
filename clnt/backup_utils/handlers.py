@@ -217,3 +217,68 @@ async def handle_do_local_repo_backup(params, websocket):
         logger.error("Timeout while waiting for the backup command.")
     except Exception as e:
         logger.error(f"Failed to execute command: {e}")
+
+async def handle_do_local_repo_restore(params, websocket):
+    """
+    Handle 'do_local_repo_restore' message type to restore files from a local Restic repository.
+    """
+    logger.info(f"Received request to perform local repo restore for repo: {params['repo_path']}")
+
+    repo_path = params.get('repo_path')
+    password = params.get('password')
+    snapshot_id = params.get('snapshot_id')  # ID of the snapshot to restore
+    target_path = params.get('target_path', '.')  # Where to restore the files
+
+    if not password or not repo_path or not snapshot_id:
+        logger.error("Password, repository path, and snapshot ID are required.")
+        return  # Log the error and return
+
+    # Build the restore command
+    command = ['./restic', '-r', repo_path, 'restore', snapshot_id, '--target', target_path, '--json']
+
+    logger.info(f"Executing restore command: {command}")
+
+    try:
+        # Start the command using subprocess and provide the password via stdin
+        result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
+
+        if result.returncode != 0:
+            logger.error(f"Command failed with return code {result.returncode}: {result.stderr}")
+            return
+
+        output = result.stdout
+
+        # Log the raw command output
+        logger.info(f"Command output:\n{output}")
+
+        # Split output into lines and filter for the summary message
+        summary_message = None
+        for line in output.splitlines():
+            try:
+                message = json.loads(line)
+                if message.get("message_type") == "summary":
+                    summary_message = message
+                    break  # Stop after finding the first summary
+            except json.JSONDecodeError:
+                continue  # Skip non-JSON lines
+
+        if summary_message:
+            logger.info(f"Parsed restore summary output: {summary_message}")
+
+            # Create a message to send to the server
+            message_to_server = {
+                "type": "response_local_repo_restore",  # Define the message type for restore
+                "repo_path": repo_path,
+                "restore_output": summary_message,
+            }
+
+            # Send the message over WebSocket
+            await websocket.send(json.dumps(message_to_server, indent=2))
+            logger.info(f"Restore data sent to server for repo: {repo_path}")
+        else:
+            logger.error("No JSON found in the command output.")
+
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout while waiting for the restore command.")
+    except Exception as e:
+        logger.error(f"Failed to execute command: {e}")

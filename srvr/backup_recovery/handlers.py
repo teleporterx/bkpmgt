@@ -7,7 +7,9 @@ from .mongo_setup import (
     initialized_local_repos_collection,
     initialized_s3_repos_collection,
     local_repo_snapshots_collection,
-    snapshot_contents_collection
+    s3_repo_snapshots_collection,
+    local_repo_backups_collection,
+    local_repo_restores_collection,
 )
 
 # Setup logging
@@ -20,13 +22,16 @@ class BackupHandlers:
         self.initialized_local_repos_collection = initialized_local_repos_collection
         self.initialized_s3_repos_collection = initialized_s3_repos_collection
         self.local_repo_snapshots_collection = local_repo_snapshots_collection
-        self.snapshot_contents_collection = snapshot_contents_collection
+        self.s3_repo_snapshots_collection = s3_repo_snapshots_collection
+        self.local_repo_backups_collection = local_repo_backups_collection
+        self.local_repo_restores_collection = local_repo_restores_collection
         self.dispatch_table = {
             "response_init_local_repo": self.handle_response_init_local_repo,
-            "response_init_s3_repo": self.handle_response_init_s3_repo,
             "response_local_repo_snapshots": self.handle_response_local_repo_snapshots,
+            "response_local_repo_backup": self.handle_response_local_repo_backup,
+            "response_local_repo_restore": self.handle_response_local_repo_restore,
+            "response_init_s3_repo": self.handle_response_init_s3_repo,
             "response_s3_repo_snapshots": self.handle_response_s3_repo_snapshots,
-            "snapshot_contents": self.handle_snapshot_contents,
         }
         # Start the cleanup task
         asyncio.create_task(self.cleanup_old_data())
@@ -43,7 +48,7 @@ class BackupHandlers:
             # logger.info(f"Deleted {result_repo_snapshots.deleted_count} old repo snapshots.")
 
             # Cleanup old snapshot contents
-            result_snapshot_contents = await self.snapshot_contents_collection.delete_many({"timestamp": {"$lt": cutoff_time}})
+            # result_snapshot_contents = await self.snapshot_contents_collection.delete_many({"timestamp": {"$lt": cutoff_time}})
             # logger.info(f"Deleted {result_snapshot_contents.deleted_count} old snapshot contents.")
 
     async def handle_response_init_local_repo(self, system_uuid, message):
@@ -134,7 +139,7 @@ class BackupHandlers:
         s3_url = message.get("s3_url")  # Retrieve the repo name
         response_timestamp = datetime.now(timezone.utc)  # Get current timestamp
 
-        # Check if there's already an existing document for this systemUuid and repo_path
+        # Check if there's already an existing document for this repo
         existing_document = await self.local_repo_snapshots_collection.find_one({
             "s3_url": s3_url
         })
@@ -154,7 +159,7 @@ class BackupHandlers:
 
         try:
             # Upsert the document (insert or update)
-            await self.local_repo_snapshots_collection.update_one(
+            await self.s3_repo_snapshots_collection.update_one(
                 {"s3_url": s3_url},  # Query to find the document
                 {"$set": document},  # Update the document with the new data
                 upsert=True  # Create the document if it does not exist
@@ -163,5 +168,72 @@ class BackupHandlers:
         except Exception as e:
             logger.error(f"Error storing repo initialization data: {e}")
 
-    async def handle_snapshot_contents(self, system_uuid, message):
-        logger.info(f"Stored snapshot contents response for {system_uuid}")
+    async def handle_response_local_repo_backup(self, system_uuid, message):
+        response_timestamp = datetime.now(timezone.utc)
+        repo_path = message.get("repo_path")
+        backup_output = message.get("backup_output")
+
+        if not repo_path or not backup_output:
+            logger.error("Received incomplete backup response.")
+            return
+
+        logger.info(f"Backup operation completed for repository: {repo_path}")
+
+        # Process the backup output, which should contain the summary
+        logger.info(f"Backup Summary: {backup_output}")
+
+        # Document structure to insert/upsert
+        document = {
+            "systemUuid": system_uuid,
+            "response_timestamp": response_timestamp,
+            "repo_path": repo_path,
+            "backup_output": backup_output,
+        }
+
+        try:
+            # Upsert the document (insert or update)
+            await self.local_repo_backups_collection.update_one(
+                {"systemUuid": system_uuid, "repo_path": repo_path},
+                {"$set": document},
+                upsert=True
+            )
+            logger.info(f"Stored backup response for {system_uuid} for repo path {repo_path}")
+        except Exception as e:
+            logger.error(f"Error storing backup response data: {e}")
+
+    async def handle_response_local_repo_restore(self, system_uuid, message):
+        """
+        Handle the response from the local repo restore operation.
+        This function processes the restore output and updates the server state or logs as needed.
+        """
+        response_timestamp = datetime.now(timezone.utc)
+        repo_path = message.get("repo_path")
+        restore_output = message.get("restore_output")
+
+        if not repo_path or not restore_output:
+            logger.error("Received incomplete restore response.")
+            return
+
+        logger.info(f"Restore operation completed for repository: {repo_path}")
+
+        # Process the restore output (which contains the summary)
+        logger.info(f"Restore Summary: {restore_output}")
+
+        # Document structure to insert/upsert
+        document = {
+            "systemUuid": system_uuid,
+            "response_timestamp": response_timestamp,
+            "repo_path": repo_path,
+            "restore_output": restore_output,
+        }
+
+        try:
+            # Upsert the document (insert or update)
+            await self.local_repo_restores_collection.update_one(
+                {"systemUuid": system_uuid, "repo_path": repo_path},
+                {"$set": document},
+                upsert=True
+            )
+            logger.info(f"Stored restore response for {system_uuid} for repo path {repo_path}")
+        except Exception as e:
+            logger.error(f"Error storing restore response data: {e}")
