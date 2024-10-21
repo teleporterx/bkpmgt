@@ -225,7 +225,7 @@ async def handle_do_local_repo_restore(params, websocket):
 
     repo_path = params.get('repo_path')
     password = params.get('password')
-    snapshot_id = params.get('snapshot_id')  # ID of the snapshot to restore
+    snapshot_id = params.get('snapshot_id', 'latest')  # Default to 'latest' if no snapshot_id is provided
     target_path = params.get('target_path', '.')  # Where to restore the files
 
     if not password or not repo_path or not snapshot_id:

@@ -28,7 +28,7 @@ class BackupHandlers:
         self.initialized_s3_repos_collection = initialized_s3_repos_collection
         self.s3_repo_snapshots_collection = s3_repo_snapshots_collection
         self.s3_repo_backups_collection = s3_repo_backups_collection
-        self.s3_repo_restores_collection = s3_repo_restores_collection
+        # self.s3_repo_restores_collection = s3_repo_restores_collection
         self.dispatch_table = {
             "response_init_local_repo": self.handle_response_init_local_repo,
             "response_local_repo_snapshots": self.handle_response_local_repo_snapshots,
@@ -37,7 +37,7 @@ class BackupHandlers:
             "response_init_s3_repo": self.handle_response_init_s3_repo,
             "response_s3_repo_snapshots": self.handle_response_s3_repo_snapshots,
             "response_s3_repo_backup": self.handle_response_s3_repo_backup,
-            "response_s3_repo_restore": self.handle_response_s3_repo_restore,
+            # "response_s3_repo_restore": self.handle_response_s3_repo_restore,
         }
         # Start the cleanup task
         asyncio.create_task(self.cleanup_old_data())
