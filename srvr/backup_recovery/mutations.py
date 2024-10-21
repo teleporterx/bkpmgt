@@ -124,21 +124,23 @@ class BackupMutations:
         password: str,
         snapshot_id: str,
         target_path: str,
+        exclude: List[str] = None,
+        include: List[str] = None,
         custom_options: List[str] = None,
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
             return "Error: Client not connected"
         
-        # Validation for input data goes here
-
-        # Create a task message for backup
+        # Create a task message for restore
         task_message = {
             "type": "do_local_repo_restore",
             "repo_path": repo_path,
             "password": password,
             "snapshot_id": snapshot_id,
-            "target_path": target_path or [],
+            "target_path": target_path,
+            "exclude": exclude or [],
+            "include": include or [],
             "custom_options": custom_options or [],
         }
 
@@ -279,18 +281,18 @@ class BackupMutations:
         password: str,
         snapshot_id: str,
         target_path: str,
+        exclude: List[str] = None,
+        include: List[str] = None,
         custom_options: List[str] = None,
         aws_session_token: str = None,
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
             return "Error: Client not connected"
-        
-        # Validation for input data goes here
 
-        # Create a task message for backup
+        # Create a task message for restore
         task_message = {
-            "type": "do_s3_repo_backup",
+            "type": "do_s3_repo_restore",
             "aws_access_key_id": aws_access_key_id,
             "aws_secret_access_key": aws_secret_access_key,
             "aws_session_token": aws_session_token,
@@ -299,6 +301,8 @@ class BackupMutations:
             "password": password,
             "snapshot_id": snapshot_id,
             "target_path": target_path,
+            "exclude": exclude or [],
+            "include": include or [],
             "custom_options": custom_options or [],
         }
 

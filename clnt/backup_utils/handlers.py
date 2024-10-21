@@ -5,6 +5,7 @@ import re
 import os
 import boto3 # AWS SDK for Python
 import botocore # for exception handling
+from backup_utils.db_manager import save_command
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -59,6 +60,9 @@ async def handle_init_local_repo(params, websocket):
         try:
             init_response = json.loads(json_data)
             logger.info(f"Parsed initialization output: {init_response}")
+
+            # Save the command and its response to the database
+            save_command('local_repo_init', params, init_response)
 
             # Create a message to send to the server
             message_to_server = {
@@ -145,9 +149,7 @@ async def handle_do_local_repo_backup(params, websocket):
     paths = params.get('paths', [])  # Get the paths for backup
     exclude = params.get('exclude', [])  # Optional exclude filters
     custom_options = params.get('custom_options', [])  # Any additional options
-    """
     tags = params.get('tags', [])  # Optional tags
-    """
 
     if not password or not repo_path:
         logger.error("Password and repository path are required.")
@@ -163,12 +165,8 @@ async def handle_do_local_repo_backup(params, websocket):
     if custom_options:
         command += custom_options
     
-    """
-    if include:
-        command += ['--include'] + include
     if tags:
         command += ['--tag'] + tags
-    """
     
     logger.info(f"this is the command that would be executed {command}")
 
@@ -227,6 +225,9 @@ async def handle_do_local_repo_restore(params, websocket):
     password = params.get('password')
     snapshot_id = params.get('snapshot_id', 'latest')  # Default to 'latest' if no snapshot_id is provided
     target_path = params.get('target_path', '.')  # Where to restore the files
+    exclude = params.get('exclude', [])  # Optional exclude filters
+    include = params.get('include', [])  # Optional include filters
+    custom_options = params.get('custom_options', [])  # Any additional options
 
     if not password or not repo_path or not snapshot_id:
         logger.error("Password, repository path, and snapshot ID are required.")
@@ -234,6 +235,17 @@ async def handle_do_local_repo_restore(params, websocket):
 
     # Build the restore command
     command = ['./restic', '-r', repo_path, 'restore', snapshot_id, '--target', target_path, '--json']
+
+    # Append each exclusion separately
+    for ex in exclude:
+        command += ['--exclude', ex]
+
+    # Append each inclusion separately
+    for inc in include:
+        command += ['--include', inc]
+
+    if custom_options:
+        command += custom_options
 
     logger.info(f"Executing restore command: {command}")
 
@@ -293,6 +305,7 @@ async def handle_do_s3_repo_backup(params, websocket):
     password = params.get('password')
     paths = params.get('paths', [])
     exclude = params.get('exclude', [])
+    tags = params.get('tags', [])  # Optional tags
     custom_options = params.get('custom_options', [])
 
     if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name:
@@ -363,6 +376,9 @@ async def handle_do_s3_repo_backup(params, websocket):
         if custom_options:
             command += custom_options        
 
+        if tags:
+            command += ['--tag'] + tags
+
         logger.info(f"Executing backup command: {command}")
 
         # Start the command using subprocess and provide the password via stdin
@@ -404,6 +420,128 @@ async def handle_do_s3_repo_backup(params, websocket):
             # Send the message over WebSocket
             await websocket.send(json.dumps(message_to_server, indent=2))
             logger.info(f"Backup data sent to server for repo: {restic_repo}")
+        else:
+            logger.error("No JSON found in the command output.")
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to run command: {e}")
+        return {"error": f"Failed to run command: {e}"}
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout while executing the command.")
+        return {"error": "Timeout while executing the command"}
+    except botocore.exceptions.ClientError as e:
+        logger.error(f"Client error occurred: {e}")
+        return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"Failed to execute operation: {e}")
+        return {"error": str(e)}
+
+async def handle_do_s3_repo_restore(params, websocket):
+    logger.info(f"Received request to perform S3 repo restore for bucket: {params['bucket_name']}")
+
+    bucket_name = params.get('bucket_name')
+    aws_access_key_id = params.get('aws_access_key_id')
+    aws_secret_access_key = params.get('aws_secret_access_key')
+    aws_session_token = params.get('aws_session_token')
+    region = params.get('region')
+    password = params.get('password')
+    snapshot_id = params.get('snapshot_id', 'latest')  # Default to 'latest' if no snapshot_id is provided
+    target_path = params.get('target_path', '.')  # Where to restore the files
+    exclude = params.get('exclude', [])
+    include = params.get('include', [])
+    custom_options = params.get('custom_options', [])
+
+    if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name:
+        logger.error("AWS credentials, region, and bucket name are required.")
+        return  # Log the error and return
+
+    # Create a new session with the specified credentials
+    session = boto3.Session(
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token  # Include session token if provided
+    )
+
+    # Create an S3 resource with the specified region
+    s3 = session.resource('s3', region_name=region)
+
+    # Check if the bucket exists
+    try:
+        s3.meta.client.head_bucket(Bucket=bucket_name)
+        logger.info(f"Bucket {bucket_name} exists, proceeding with restore.")
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == '404':
+            logger.error(f"Bucket {bucket_name} does not exist.")
+            return {"error": f"Bucket {bucket_name} does not exist."}
+        logger.error(f"Failed to access bucket: {e}")
+        return {"error": str(e)}
+
+    # Construct the RESTIC_REPOSITORY from bucket attributes.
+    restic_repo = f"s3:s3.{region}.amazonaws.com/{bucket_name}"
+
+    # Set environment variables using env as a dict
+    env = os.environ.copy()  # Copy existing environment variables
+    env.update({
+        'AWS_ACCESS_KEY_ID': aws_access_key_id,
+        'AWS_SECRET_ACCESS_KEY': aws_secret_access_key,
+        'AWS_SESSION_TOKEN': aws_session_token if aws_session_token else '',
+        'RESTIC_REPOSITORY': restic_repo,
+        'RESTIC_PASSWORD': password
+    })
+
+    # Build the restore command
+    command = ['./restic', 'restore', snapshot_id, '--target', target_path, '--json']
+
+    # Append each exclusion separately
+    for ex in exclude:
+        command += ['--exclude', ex]
+
+    # Append each inclusion separately
+    for inc in include:
+        command += ['--include', inc]
+
+    if custom_options:
+        command += custom_options
+
+    logger.info(f"Executing restore command: {command}")
+
+    try:
+        # Start the command using subprocess and provide the password via stdin
+        result = subprocess.run(command, env=env, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            logger.error(f"Command failed with return code {result.returncode}: {result.stderr}")
+            return f"Command failed: {result.stderr}"
+
+        output = result.stdout
+
+        # Log the raw command output
+        logger.info(f"Command output:\n{output}")
+
+        # Split output into lines and filter for the summary message
+        summary_message = None
+        for line in output.splitlines():
+            try:
+                message = json.loads(line)
+                if message.get("message_type") == "summary":
+                    summary_message = message
+                    break  # Stop after finding the first summary
+            except json.JSONDecodeError:
+                continue  # Skip non-JSON lines
+
+        if summary_message:
+            logger.info(f"Parsed restore summary output: {summary_message}")
+
+            # Create a message to send to the server
+            message_to_server = {
+                "type": "response_s3_repo_restore",  # Define the message type for restore
+                "s3_url": restic_repo,
+                "restore_output": summary_message,
+            }
+
+            # Send the message over WebSocket
+            await websocket.send(json.dumps(message_to_server, indent=2))
+            logger.info(f"Restore data sent to server for repo: {restic_repo}")
         else:
             logger.error("No JSON found in the command output.")
 

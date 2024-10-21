@@ -144,6 +144,7 @@ async def consume_messages(system_uuid, connection, websocket):
             "do_local_repo_backup": handle_do_local_repo_backup,
             "do_local_repo_restore": handle_do_local_repo_restore,
             "do_s3_repo_backup": handle_do_s3_repo_backup,
+            "do_s3_repo_restore": handle_do_s3_repo_restore,
         }
 
         async for message in queue:
