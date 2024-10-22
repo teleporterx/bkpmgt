@@ -22,13 +22,16 @@ def derive_key(password):
 key = derive_key(password)
 cipher_suite = Fernet(key)
 
-def encrypt_password(password):
+def encrypt_field(input):
     """Encrypt the password using the global password-derived key."""
-    return cipher_suite.encrypt(password.encode('utf-8')).decode('utf-8')
+    return cipher_suite.encrypt(input.encode('utf-8')).decode('utf-8')
 
-def decrypt_password(encrypted_password):
+def decrypt_field(input):
     """Decrypt the password using the global password-derived key."""
-    return cipher_suite.decrypt(encrypted_password.encode('utf-8')).decode('utf-8')
+    return cipher_suite.decrypt(input.encode('utf-8')).decode('utf-8')
+
+def normalize_params(params):
+    return json.dumps(params, sort_keys=True)
 
 def initialize_database():
     """Initialize the database and create tables for each command type if they don't exist."""
@@ -38,7 +41,7 @@ def initialize_database():
 
         # Create separate tables for each command type
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS local_repo_init (
+            CREATE TABLE IF NOT EXISTS init_local_repo (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 params TEXT NOT NULL,
                 response TEXT NOT NULL,
@@ -47,7 +50,7 @@ def initialize_database():
         ''')
         
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS local_repo_snapshots (
+            CREATE TABLE IF NOT EXISTS get_local_repo_snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 params TEXT NOT NULL,
                 response TEXT NOT NULL,
@@ -56,7 +59,7 @@ def initialize_database():
         ''')
         
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS local_repo_backup (
+            CREATE TABLE IF NOT EXISTS do_local_repo_backup (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 params TEXT NOT NULL,
                 response TEXT NOT NULL,
@@ -65,7 +68,7 @@ def initialize_database():
         ''')
         
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS local_repo_restore (
+            CREATE TABLE IF NOT EXISTS do_local_repo_restore (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 params TEXT NOT NULL,
                 response TEXT NOT NULL,
@@ -74,7 +77,7 @@ def initialize_database():
         ''')
 
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS s3_repo_backup (
+            CREATE TABLE IF NOT EXISTS do_s3_repo_backup (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 params TEXT NOT NULL,
                 response TEXT NOT NULL,
@@ -95,24 +98,37 @@ def save_command(command_type, params, response):
 
     # Encrypt the password if it exists in the params
     if 'password' in params:
-        password = params['password']
-        encrypted_password = encrypt_password(password)  # Encrypt the password
-        params['password'] = encrypted_password  # Replace the original password with the encrypted version
+        params['password'] = encrypt_field(params['password'])
+
+    if command_type.startswith('do_s3_repo_'):
+        params['aws_access_key_id'] = encrypt_field(params['aws_access_key_id'])
+        params['aws_secret_access_key'] = encrypt_field(params['aws_secret_access_key'])
+
+        if not params['aws_session_token'] == "":
+            params['aws_session_token'] = encrypt_field(params['aws_session_token'])
+
 
     try:
         connection = sqlite3.connect(DATABASE_FILE)
         cursor = connection.cursor()
 
         # Check if the command already exists using the encrypted params
-        cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE params = ?', (json.dumps(params),))
+        # cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE params = ?', (json.dumps(params),))
+        cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE params = ?', (normalize_params(params),))
         count = cursor.fetchone()[0]
 
         if count == 0:  # Only insert if no existing record
             # Prepare data for insertion
+            """"
             cursor.execute(f'''
                 INSERT INTO {table_name} (params, response, response_timestamp)
                 VALUES (?, ?, ?)
             ''', (json.dumps(params), json.dumps(response), response_timestamp))
+            """
+            cursor.execute(f'''
+                INSERT INTO {table_name} (params, response, response_timestamp)
+                VALUES (?, ?, ?)
+            ''', (normalize_params(params), json.dumps(response), response_timestamp))
 
             connection.commit()
         else:

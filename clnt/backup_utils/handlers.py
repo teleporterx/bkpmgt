@@ -19,6 +19,7 @@ async def handle_init_local_repo(params, websocket):
     logger.info(f"Initializing Restic repository at: {params['repo_path']}")
     password = params.get('password')
     repo_path = params.get('repo_path')
+    command_history = params.get('command_history', True)
 
     command = ['./restic', '-r', repo_path, 'init', '--json']
 
@@ -61,8 +62,9 @@ async def handle_init_local_repo(params, websocket):
             init_response = json.loads(json_data)
             logger.info(f"Parsed initialization output: {init_response}")
 
-            # Save the command and its response to the database
-            save_command('local_repo_init', params, init_response)
+            if command_history:
+                # Save the command and its response to the database
+                save_command('init_local_repo', params, init_response)
 
             # Create a message to send to the server
             message_to_server = {
@@ -93,6 +95,7 @@ async def handle_get_local_repo_snapshots(params, websocket):
 
     password = params.get('password')
     repo_path = params.get('repo_path')
+    command_history = params.get('command_history', True)
 
     if not password or not repo_path:
         logger.error("Password and repository path are required.")
@@ -119,6 +122,9 @@ async def handle_get_local_repo_snapshots(params, websocket):
             json_data = output[json_start.start():]  # Extract JSON part of the output
             snapshots = json.loads(json_data)  # Parse the JSON output
             logger.info(f"Parsed snapshots: {snapshots}")
+
+            if command_history:
+                save_command('get_local_repo_snapshots', params, snapshots)
 
             # Create a message to send to the server
             message_to_server = {
@@ -150,6 +156,7 @@ async def handle_do_local_repo_backup(params, websocket):
     exclude = params.get('exclude', [])  # Optional exclude filters
     custom_options = params.get('custom_options', [])  # Any additional options
     tags = params.get('tags', [])  # Optional tags
+    command_history = params.get('command_history', True)
 
     if not password or not repo_path:
         logger.error("Password and repository path are required.")
@@ -196,6 +203,9 @@ async def handle_do_local_repo_backup(params, websocket):
 
         if summary_message:
             logger.info(f"Parsed backup summary output: {summary_message}")
+            
+            if command_history:
+                save_command('do_local_repo_backup', params, summary_message)
 
             # Create a message to send to the server
             message_to_server = {
@@ -228,6 +238,7 @@ async def handle_do_local_repo_restore(params, websocket):
     exclude = params.get('exclude', [])  # Optional exclude filters
     include = params.get('include', [])  # Optional include filters
     custom_options = params.get('custom_options', [])  # Any additional options
+    command_history = params.get('command_history', True)
 
     if not password or not repo_path or not snapshot_id:
         logger.error("Password, repository path, and snapshot ID are required.")
@@ -276,6 +287,9 @@ async def handle_do_local_repo_restore(params, websocket):
         if summary_message:
             logger.info(f"Parsed restore summary output: {summary_message}")
 
+            if command_history:
+                save_command('do_local_repo_restore', params, summary_message)
+
             # Create a message to send to the server
             message_to_server = {
                 "type": "response_local_repo_restore",  # Define the message type for restore
@@ -307,6 +321,7 @@ async def handle_do_s3_repo_backup(params, websocket):
     exclude = params.get('exclude', [])
     tags = params.get('tags', [])  # Optional tags
     custom_options = params.get('custom_options', [])
+    command_history = params.get('command_history', True)
 
     if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name:
         logger.error("AWS credentials, region, and bucket name are required.")
@@ -410,6 +425,9 @@ async def handle_do_s3_repo_backup(params, websocket):
         if summary_message:
             logger.info(f"Parsed restore summary output: {summary_message}")
 
+            if command_history:
+                save_command('do_s3_repo_backup', params, summary_message)
+
             # Create a message to send to the server
             message_to_server = {
                 "type": "response_s3_repo_backup",  # Define the message type for restore
@@ -450,6 +468,7 @@ async def handle_do_s3_repo_restore(params, websocket):
     exclude = params.get('exclude', [])
     include = params.get('include', [])
     custom_options = params.get('custom_options', [])
+    command_history = params.get('command_history', True)
 
     if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name:
         logger.error("AWS credentials, region, and bucket name are required.")
@@ -531,6 +550,9 @@ async def handle_do_s3_repo_restore(params, websocket):
 
         if summary_message:
             logger.info(f"Parsed restore summary output: {summary_message}")
+            
+            if command_history:
+                save_command('do_s3_repo_restore', params, summary_message)
 
             # Create a message to send to the server
             message_to_server = {
