@@ -84,6 +84,15 @@ def initialize_database():
                 response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS do_s3_repo_restore (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                params TEXT NOT NULL,
+                response TEXT NOT NULL,
+                response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
         connection.commit()
     except Exception as e:

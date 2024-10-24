@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "bkpenv"
+version = "0.1.0"
+description = "Backup Management Backend (Server-Client Unified Codebase)"
+authors = ["octocroc <crctpus@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+strawberry-graphql = "^0.247.0"
+motor = "^3.6.0"
+fastapi = "^0.115.3"
+uvicorn = "^0.32.0"
+websockets = "^13.1"
+aio-pika = "^9.4.3"
+pyjwt = "^2.9.0"
+requests = "^2.32.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

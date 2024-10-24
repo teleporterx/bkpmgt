@@ -19,6 +19,7 @@ class BackupMutations:
         system_uuid: str,
         repo_path: str,
         password: str,
+        command_history: bool,
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
@@ -29,6 +30,7 @@ class BackupMutations:
             "type": "init_local_repo",
             "repo_path": repo_path,
             "password": password,
+            "command_history": command_history,
         }
 
         # Get the client's queue
@@ -50,6 +52,7 @@ class BackupMutations:
         system_uuid: str,
         repo_path: str,
         password: str,
+        command_history: bool,
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
@@ -60,6 +63,7 @@ class BackupMutations:
             "type": "get_local_repo_snapshots",
             "repo_path": repo_path,
             "password": password,
+            "command_history": command_history,
         }
 
         # Get the client's queue
@@ -82,6 +86,7 @@ class BackupMutations:
         repo_path: str,
         password: str,
         paths: List[str],
+        command_history: bool,
         exclude: List[str] = None,
         tags: List[str] = None,
         custom_options: List[str] = None,
@@ -101,6 +106,7 @@ class BackupMutations:
             "exclude": exclude or [],
             "tags": tags or [],
             "custom_options": custom_options or [],
+            "command_history": command_history,
         }
 
         # Get the client's queue
@@ -124,6 +130,7 @@ class BackupMutations:
         password: str,
         snapshot_id: str,
         target_path: str,
+        command_history: bool,
         exclude: List[str] = None,
         include: List[str] = None,
         custom_options: List[str] = None,
@@ -142,6 +149,7 @@ class BackupMutations:
             "exclude": exclude or [],
             "include": include or [],
             "custom_options": custom_options or [],
+            "command_history": command_history,
         }
 
         # Get the client's queue
@@ -231,6 +239,7 @@ class BackupMutations:
         bucket_name: str,
         password: str,
         paths: List[str],
+        command_history: bool,
         exclude: List[str] = None,
         tags: List[str] = None,
         custom_options: List[str] = None,
@@ -255,6 +264,7 @@ class BackupMutations:
             "exclude": exclude or [],
             "tags": tags or [],
             "custom_options": custom_options or [],
+            "command_history": command_history,
         }
 
         # Get the client's queue
@@ -281,6 +291,7 @@ class BackupMutations:
         password: str,
         snapshot_id: str,
         target_path: str,
+        command_history: bool,
         exclude: List[str] = None,
         include: List[str] = None,
         custom_options: List[str] = None,
@@ -304,6 +315,7 @@ class BackupMutations:
             "exclude": exclude or [],
             "include": include or [],
             "custom_options": custom_options or [],
+            "command_history": command_history,
         }
 
         # Get the client's queue
