@@ -152,12 +152,17 @@ async def consume_messages(system_uuid, connection, websocket):
                 async with message.process():
                     message_data = json.loads(message.body.decode())
                     message_type = message_data.get("type")
-                    handler = dispatch_table.get(message_type)
 
-                    if handler:
-                        await handler(message_data, websocket)  # Pass websocket instance
+                    if message_type.startswith("schedule_"):
+                        # Route to task_scheduler for scheduled task
+                        await task_scheduler(message_data, websocket)
                     else:
-                        logger.warning(f"Unknown message type: {message_type}")
+                        # Regular message handling
+                        handler = dispatch_table.get(message_type)
+                        if handler:
+                            await handler(message_data, websocket)  # Pass websocket instance
+                        else:
+                            logger.warning(f"Unknown message type: {message_type}")
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
 

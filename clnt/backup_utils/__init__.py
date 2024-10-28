@@ -6,5 +6,6 @@ backup module; includes command functionality for various tools
 """
 
 from .handlers import *
+from .schedule_manager import *
 
 __version__ = "1.0.0"

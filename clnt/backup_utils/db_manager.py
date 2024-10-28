@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 import logging
 from cryptography.fernet import Fernet
 import base64
-import os
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -14,10 +16,18 @@ DATABASE_FILE = 'bkpmgt.db'
 password = "deepdefend_authpass"
 
 # cryptsetup
-# Derive a key from the password (for demonstration; use a secure key derivation in production)
+# Derive a key using a more secure approach (PBKDF2)
 def derive_key(password):
-    # Generate a key based on the password (you might want to use a proper key derivation function)
-    return base64.urlsafe_b64encode(password.encode('utf-8').ljust(32)[:32])
+    """Derive a secure key using PBKDF2HMAC."""
+    salt = b'\x00' * 16  # In production, use a unique salt and store it securely.
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=default_backend()
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode('utf-8')))
 
 key = derive_key(password)
 cipher_suite = Fernet(key)

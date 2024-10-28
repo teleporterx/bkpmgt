@@ -4,7 +4,8 @@ import aio_pika
 from comms import manager # imports the manager object from the main script
 from backup_recovery.s3_helper import s3_restic_helper
 import logging
-from typing import List
+from typing import List, Optional
+from datetime import datetime, timezone
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -13,25 +14,69 @@ logger = logging.getLogger(__name__)
 # Mutations for task allocation
 @strawberry.type
 class BackupMutations:
+    # Granular time duration model
+    @strawberry.input
+    class TimeDurationInput:
+        # Include relevant time denominations, rule out un-realistic ones {months, years, ...}
+        days: int = 0
+        hours: int = 0
+        minutes: int = 0
+        seconds: int = 0
+
     @strawberry.mutation
     async def init_local_repo(
         self,
         system_uuid: str,
         repo_path: str,
         password: str,
-        command_history: bool,
+        command_history: Optional[bool] = None,
+        scheduler: Optional[str] = None,
+        interval: Optional[TimeDurationInput] = None, # List of date-time strings
+        timelapse_array: Optional[List[str]] = None  # List of date-time strings
+        # timelapse_array (or give a more appropriiate name):
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
             return "Error: Client not connected"
-
+        
+        task_map = { # if scheduler is specified
+            # Need input validation in later stages (this is just a proto)
+            "interval": "schedule_interval_init_local_repo",
+            "timelapse": "schedule_timelapse_init_local_repo",
+        }
+        # if scheduler is specified, use the corresponding task
+        task_type = task_map.get(scheduler, "init_local_repo")
+        
         # Create a task message for initializing the repository
         task_message = {
-            "type": "init_local_repo",
+            "type": task_type,
             "repo_path": repo_path,
             "password": password,
             "command_history": command_history,
         }
+
+        if scheduler:
+            # taske_message updates for scheduler types
+            scheduling_action = {
+                "interval": lambda: task_message.update({
+                    "interval": {
+                        "days": interval.days,
+                        "hours": interval.hours,
+                        "minutes": interval.minutes,
+                        "seconds": interval.seconds,
+                    }
+                }) if interval else None,
+                "timelapse": lambda: task_message.update({
+                    "timelapse": [
+                        datetime.fromisoformat(t).astimezone(timezone.utc) for t in timelapse_array
+                    ] if timelapse_array else None
+                })
+            }
+            try:
+                action = scheduling_action[scheduler]
+                action() # Execute the action for the corresponding type of scheduler
+            except KeyError as e:
+                return f"Error: Invalid scheduler {e}"
 
         # Get the client's queue
         queue = manager.queues.get(system_uuid)
