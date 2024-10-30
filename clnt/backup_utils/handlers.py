@@ -6,10 +6,13 @@ import os
 import boto3 # AWS SDK for Python
 import botocore # for exception handling
 from backup_utils.db_manager import save_command
+from sys_utils.resource_helper import *
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+restic_path = get_restic_path()
 
 async def handle_init_local_repo(params, websocket):
     """
@@ -21,7 +24,7 @@ async def handle_init_local_repo(params, websocket):
     repo_path = params.get('repo_path')
     command_history = params.get('command_history', True)
 
-    command = ['./restic', '-r', repo_path, 'init', '--json']
+    command = [restic_path, '-r', repo_path, 'init', '--json']
 
     try:
         # Start the command using subprocess and provide the password via stdin
@@ -101,7 +104,7 @@ async def handle_get_local_repo_snapshots(params, websocket):
         logger.error("Password and repository path are required.")
         return  # No return, just log the error
     
-    command = ['./restic', '-r', repo_path, 'snapshots', '--json']
+    command = [restic_path, '-r', repo_path, 'snapshots', '--json']
 
     try:
         # Start the command using subprocess and provide the password via stdin
@@ -163,7 +166,7 @@ async def handle_do_local_repo_backup(params, websocket):
         return  # Log the error and return
 
     # Build the backup command
-    command = ['./restic', '-r', repo_path, 'backup', '--json'] + paths
+    command = [restic_path, '-r', repo_path, 'backup', '--json'] + paths
 
     # Append each exclusion separately
     for ex in exclude:
@@ -245,7 +248,7 @@ async def handle_do_local_repo_restore(params, websocket):
         return  # Log the error and return
 
     # Build the restore command
-    command = ['./restic', '-r', repo_path, 'restore', snapshot_id, '--target', target_path, '--json']
+    command = [restic_path, '-r', repo_path, 'restore', snapshot_id, '--target', target_path, '--json']
 
     # Append each exclusion separately
     for ex in exclude:
@@ -382,7 +385,7 @@ async def handle_do_s3_repo_backup(params, websocket):
         })
 
         # Build the backup command
-        command = ['./restic', 'backup', '--json'] + paths
+        command = [restic_path, 'backup', '--json'] + paths
 
         # Append each exclusion separately
         for ex in exclude:
@@ -509,7 +512,7 @@ async def handle_do_s3_repo_restore(params, websocket):
     })
 
     # Build the restore command
-    command = ['./restic', 'restore', snapshot_id, '--target', target_path, '--json']
+    command = [restic_path, 'restore', snapshot_id, '--target', target_path, '--json']
 
     # Append each exclusion separately
     for ex in exclude:

@@ -5,6 +5,7 @@ import json
 import signal
 import aio_pika
 from sys_utils.uuid_info import get_system_uuid
+from sys_utils.resource_helper import *
 import requests  # Import requests for HTTP calls
 from fastapi import FastAPI
 import uvicorn
@@ -24,13 +25,16 @@ running = True
 # API for Web-GUI
 app = FastAPI()
 
+static_directory = get_static_directory()
+
 # Mount static files like CSS and images
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=static_directory), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     # Return the static index.html file from the static directory
-    with open("static/index.html") as f:
+    index_path = os.path.join(static_directory, "index.html")
+    with open(index_path) as f:
         return HTMLResponse(content=f.read())
 
 # Authentication Setup
