@@ -6,3 +6,5 @@ websockets
 aio-pika
 pyjwt
 requests
+boto3
+cryptography

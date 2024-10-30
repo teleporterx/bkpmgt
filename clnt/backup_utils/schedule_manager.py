@@ -9,10 +9,15 @@ async def handle_dummy(params, websocket):
     logger.info(f"dummy is being handled")
     pass
 
+async def handle_schedule_timelapse_get_local_repo_snapshots(params, websocket):
+    logger.info(f"get local repo snapshots is being handled")
+    pass
+
 dispatch_table = {
     "schedule_interval_init_local_repo": handle_dummy,
     # "schedule_interval": handle_schedule_interval,
     # "schedule_timelapse": handle_schedule_timelapse,
+    "schedule_timelapse_get_local_repo_snapshots": handle_schedule_timelapse_get_local_repo_snapshots,
 }
 
 async def task_scheduler(message_data, websocket):
