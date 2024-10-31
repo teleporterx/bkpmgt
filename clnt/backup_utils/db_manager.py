@@ -158,6 +158,20 @@ async def save_command(command_type, params, response):
 
 async def save_scheduled_task(params):
     """Save a scheduled task to the schedule ledger."""
+    
+    # Encrypt sensitive fields if they exist in the params
+    if 'password' in params:
+        params['password'] = encrypt_field(params['password'])
+
+    if 'aws_access_key_id' in params:
+        params['aws_access_key_id'] = encrypt_field(params['aws_access_key_id'])
+    
+    if 'aws_secret_access_key' in params:
+        params['aws_secret_access_key'] = encrypt_field(params['aws_secret_access_key'])
+
+    if 'aws_session_token' in params and params['aws_session_token'] != "":
+        params['aws_session_token'] = encrypt_field(params['aws_session_token'])
+        
     try:
         async with aiosqlite.connect(DATABASE_FILE) as connection:
             cursor = await connection.cursor()
