@@ -161,8 +161,8 @@ async def consume_messages(system_uuid, connection, websocket):
                     message_type = message_data.get("type")
 
                     if message_type.startswith("schedule_"):
-                        # Route to task_scheduler for scheduled task
-                        await task_scheduler(message_data, websocket)
+                        # Write to schedule ledger
+                        await save_scheduled_task(message_data)
                     else:
                         # Regular message handling
                         handler = dispatch_table.get(message_type)
