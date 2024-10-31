@@ -67,7 +67,7 @@ async def handle_init_local_repo(params, websocket):
 
             if command_history:
                 # Save the command and its response to the database
-                save_command('init_local_repo', params, init_response)
+                await save_command('init_local_repo', params, init_response)
 
             # Create a message to send to the server
             message_to_server = {
@@ -127,7 +127,7 @@ async def handle_get_local_repo_snapshots(params, websocket):
             logger.info(f"Parsed snapshots: {snapshots}")
 
             if command_history:
-                save_command('get_local_repo_snapshots', params, snapshots)
+                await save_command('get_local_repo_snapshots', params, snapshots)
 
             # Create a message to send to the server
             message_to_server = {
@@ -208,7 +208,7 @@ async def handle_do_local_repo_backup(params, websocket):
             logger.info(f"Parsed backup summary output: {summary_message}")
             
             if command_history:
-                save_command('do_local_repo_backup', params, summary_message)
+                await save_command('do_local_repo_backup', params, summary_message)
 
             # Create a message to send to the server
             message_to_server = {
@@ -291,7 +291,7 @@ async def handle_do_local_repo_restore(params, websocket):
             logger.info(f"Parsed restore summary output: {summary_message}")
 
             if command_history:
-                save_command('do_local_repo_restore', params, summary_message)
+                await save_command('do_local_repo_restore', params, summary_message)
 
             # Create a message to send to the server
             message_to_server = {
@@ -429,7 +429,7 @@ async def handle_do_s3_repo_backup(params, websocket):
             logger.info(f"Parsed restore summary output: {summary_message}")
 
             if command_history:
-                save_command('do_s3_repo_backup', params, summary_message)
+                await save_command('do_s3_repo_backup', params, summary_message)
 
             # Create a message to send to the server
             message_to_server = {
@@ -555,7 +555,7 @@ async def handle_do_s3_repo_restore(params, websocket):
             logger.info(f"Parsed restore summary output: {summary_message}")
             
             if command_history:
-                save_command('do_s3_repo_restore', params, summary_message)
+                await save_command('do_s3_repo_restore', params, summary_message)
 
             # Create a message to send to the server
             message_to_server = {

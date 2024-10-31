@@ -1,4 +1,5 @@
-import sqlite3
+import asyncio
+import aiosqlite
 import json
 from datetime import datetime, timezone
 import logging
@@ -43,74 +44,82 @@ def decrypt_field(input):
 def normalize_params(params):
     return json.dumps(params, sort_keys=True)
 
-def initialize_database():
+async def initialize_database():
     """Initialize the database and create tables for each command type if they don't exist."""
     try:
-        connection = sqlite3.connect(DATABASE_FILE)
-        cursor = connection.cursor()
+        async with aiosqlite.connect(DATABASE_FILE) as connection:
+            cursor = await connection.cursor()
 
-        # Create separate tables for each command type
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS init_local_repo (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                params TEXT NOT NULL,
-                response TEXT NOT NULL,
-                response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS get_local_repo_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                params TEXT NOT NULL,
-                response TEXT NOT NULL,
-                response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS do_local_repo_backup (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                params TEXT NOT NULL,
-                response TEXT NOT NULL,
-                response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS do_local_repo_restore (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                params TEXT NOT NULL,
-                response TEXT NOT NULL,
-                response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+            # Create separate tables for each command type
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS init_local_repo (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    params TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS get_local_repo_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    params TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS do_local_repo_backup (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    params TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS do_local_repo_restore (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    params TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS do_s3_repo_backup (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                params TEXT NOT NULL,
-                response TEXT NOT NULL,
-                response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS do_s3_repo_backup (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    params TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS do_s3_repo_restore (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                params TEXT NOT NULL,
-                response TEXT NOT NULL,
-                response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        connection.commit()
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS do_s3_repo_restore (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    params TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # Create the schedule ledger table
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS schedule_ledger (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    params TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT DEFAULT 'pending'
+                )
+            ''')
+
+            await connection.commit()
     except Exception as e:
         logger.error(f"Failed to initialize the database: {e}")
-    finally:
-        connection.close()
 
-def save_command(command_type, params, response):
+async def save_command(command_type, params, response):
     """Save the command details to the appropriate table based on the command type."""
     response_timestamp = datetime.now(timezone.utc).isoformat()  # Get current timestamp in UTC
     table_name = command_type.replace(" ", "_").lower()  # Normalize table name
@@ -126,36 +135,41 @@ def save_command(command_type, params, response):
         if not params['aws_session_token'] == "":
             params['aws_session_token'] = encrypt_field(params['aws_session_token'])
 
-
     try:
-        connection = sqlite3.connect(DATABASE_FILE)
-        cursor = connection.cursor()
+        async with aiosqlite.connect(DATABASE_FILE) as connection:
+            cursor = await connection.cursor()
 
-        # Check if the command already exists using the encrypted params
-        # cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE params = ?', (json.dumps(params),))
-        cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE params = ?', (normalize_params(params),))
-        count = cursor.fetchone()[0]
+            # Check if the command already exists using the encrypted params
+            await cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE params = ?', (normalize_params(params),))
+            count = await cursor.fetchone()
+            count = count[0] if count else 0
 
-        if count == 0:  # Only insert if no existing record
-            # Prepare data for insertion
-            """"
-            cursor.execute(f'''
-                INSERT INTO {table_name} (params, response, response_timestamp)
-                VALUES (?, ?, ?)
-            ''', (json.dumps(params), json.dumps(response), response_timestamp))
-            """
-            cursor.execute(f'''
-                INSERT INTO {table_name} (params, response, response_timestamp)
-                VALUES (?, ?, ?)
-            ''', (normalize_params(params), json.dumps(response), response_timestamp))
+            if count == 0:  # Only insert if no existing record
+                await cursor.execute(f'''
+                    INSERT INTO {table_name} (params, response, response_timestamp)
+                    VALUES (?, ?, ?)
+                ''', (normalize_params(params), json.dumps(response), response_timestamp))
 
-            connection.commit()
-        else:
-            logger.info(f"Command with params already exists in {table_name}, skipping insert.")
+                await connection.commit()
+            else:
+                logger.info(f"Command with params already exists in {table_name}, skipping insert.")
     except Exception as e:
         logger.error(f"Failed to save command to database: {e}")
-    finally:
-        connection.close()
+
+async def save_scheduled_task(params):
+    """Save a scheduled task to the schedule ledger."""
+    try:
+        async with aiosqlite.connect(DATABASE_FILE) as connection:
+            cursor = await connection.cursor()
+
+            await cursor.execute('''
+                INSERT INTO schedule_ledger (params, status)
+                VALUES (?, ?)
+            ''', (json.dumps(params), 'pending'))
+
+            await connection.commit()
+    except Exception as e:
+        logger.error(f"Failed to save scheduled task: {e}")
 
 # Initialize the database when the module is loaded
-initialize_database()
+asyncio.run(initialize_database())

@@ -8,3 +8,4 @@ pyjwt
 requests
 boto3
 cryptography
+aiosqlite

@@ -30,52 +30,18 @@ class BackupMutations:
         repo_path: str,
         password: str,
         command_history: Optional[bool] = None,
-        scheduler: Optional[str] = None,
-        interval: Optional[TimeDurationInput] = None, # List of date-time strings
-        timelapse_array: Optional[List[str]] = None  # List of date-time strings
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
             return "Error: Client not connected"
-        
-        task_map = { # if scheduler is specified
-            # Need input validation in later stages (this is just a proto)
-            "interval": "schedule_interval_init_local_repo",
-            "timelapse": "schedule_timelapse_init_local_repo",
-        }
-        # if scheduler is specified, use the corresponding task
-        task_type = task_map.get(scheduler, "init_local_repo")
-        
+
         # Create a task message for initializing the repository
         task_message = {
-            "type": task_type,
+            "type": "init_local_repo",
             "repo_path": repo_path,
             "password": password,
             "command_history": command_history,
         }
-
-        if scheduler:
-            # taske_message updates for scheduler types
-            scheduling_action = {
-                "interval": lambda: task_message.update({
-                    "interval": {
-                        "days": interval.days,
-                        "hours": interval.hours,
-                        "minutes": interval.minutes,
-                        "seconds": interval.seconds,
-                    }
-                }) if interval else None,
-                "timelapse": lambda: task_message.update({
-                    "timelapse": [
-                        datetime.fromisoformat(t).astimezone(timezone.utc) for t in timelapse_array
-                    ] if timelapse_array else None
-                })
-            }
-            try:
-                action = scheduling_action[scheduler]
-                action() # Execute the action for the corresponding type of scheduler
-            except KeyError as e:
-                return f"Error: Invalid scheduler {e}"
 
         # Get the client's queue
         queue = manager.queues.get(system_uuid)
@@ -98,6 +64,7 @@ class BackupMutations:
         password: str,
         command_history: Optional[bool] = None,
         scheduler: Optional[str] = None,
+        scheduler_priority: Optional[int] = None,
         interval: Optional[TimeDurationInput] = None, # List of date-time strings
         timelapse_array: Optional[List[str]] = None  # List of date-time strings        
     ) -> str:
@@ -122,7 +89,10 @@ class BackupMutations:
         }
 
         if scheduler:
-            # taske_message updates for scheduler types
+            # task_message updates for scheduler priority
+            task_message["scheduler_priority"] = scheduler_priority
+
+            # task_message updates for scheduler types
             scheduling_action = {
                 "interval": lambda: task_message.update({
                     "interval": {

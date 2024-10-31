@@ -19,6 +19,9 @@ from backup_utils import *
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Global variable that points to the central server
+SRVR_IP = "localhost"
+
 # Global flag to control the running state of the agent
 running = True
 
@@ -43,7 +46,7 @@ async def obtain_jwt(system_uuid, password, max_retries=5, backoff_factor=2, max
     Obtain a JWT token by authenticating with the server.
     Retries on failure with exponential backoff.
     """
-    url = "http://localhost:5000/token"  # Update with your server URL
+    url = f"http://{SRVR_IP}:5000/token"  # Update with your server URL
     retry_attempts = 0
 
     while retry_attempts < max_retries:
@@ -183,7 +186,7 @@ async def agent():
         logger.error("Authentication routine failed!! Exiting...") # Failed to obtain JWT token
         return
     
-    bhive_uri = f"ws://localhost:5000/ws/{system_uuid}?token={token}"  # Include the token in the URI
+    bhive_uri = f"ws://{SRVR_IP}:5000/ws/{system_uuid}?token={token}"  # Include the token in the URI
 
     retry_attempts = 0
     backoff_factor = 2
@@ -198,7 +201,7 @@ async def agent():
                 logger.info("Connected to WebSocket server.")
 
                 try:
-                    rabbit_connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
+                    rabbit_connection = await aio_pika.connect_robust(f"amqp://guest:guest@{SRVR_IP}/")
                     consumer_task = asyncio.create_task(consume_messages(system_uuid, rabbit_connection, websocket))  # Pass websocket here
 
                     retry_attempts = 0  # Reset retry attempts after a successful connection
