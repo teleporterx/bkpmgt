@@ -14,13 +14,38 @@ from fastapi.responses import HTMLResponse
 import os
 import sys
 from backup_utils import *
+import commentjson
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global variable that points to the central server
-SRVR_IP = "localhost"
+# Path to the config file
+CONFIG_FILE_PATH = "config.jsonc"
+
+def load_config():
+    """
+    Load the configuration from the JSONC file.
+    """
+    if not os.path.exists(CONFIG_FILE_PATH):
+        raise FileNotFoundError(f"Configuration file not found: {CONFIG_FILE_PATH}")
+    
+    with open(CONFIG_FILE_PATH, 'r') as f:
+        config = commentjson.load(f)
+    return config
+
+# Load the configuration
+config = load_config()
+
+# Accessing SRVR_IP from the loaded config
+SRVR_IP = config.get('SRVR_IP')
+
+# Check if SRVR_IP exists in the config, otherwise exit with a message
+if not SRVR_IP:
+    logger.error("SRVR_IP not found in config. Exiting.")
+    sys.exit("SRVR_IP configuration missing!")
+
+logger.info(f"config loaded! .. SRVR IP: {SRVR_IP}")
 
 # Global flag to control the running state of the agent
 running = True
