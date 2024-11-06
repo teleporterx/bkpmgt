@@ -20,8 +20,11 @@ import commentjson
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Path to the config file
-CONFIG_FILE_PATH = "config.jsonc"
+# Get the directory where the executable is located
+BIN_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
+
+# Construct the full path to the config file
+CONFIG_FILE_PATH = os.path.join(BIN_DIR, "config.jsonc")
 
 def load_config():
     """

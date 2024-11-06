@@ -9,3 +9,5 @@ requests
 boto3
 cryptography
 aiosqlite
+commentjson
+pyinstaller

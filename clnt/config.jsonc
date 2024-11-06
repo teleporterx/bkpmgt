@@ -1,8 +1,0 @@
-{
-    // Server configuration
-    //"SRVR_IP": "192.168.0.100",  // IP of the centralized server
-    "backup_ip": "192.168.0.101",  // Backup server IP
-    "port": 5000,
-    "max_retries": 5
-}
-  
