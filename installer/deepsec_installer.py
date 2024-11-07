@@ -34,12 +34,13 @@ def create_config(config_params, target_dir):
         sys.exit(1)
 
 # Function to install Wazuh agent (Windows)
-def install_wazuh_agent_windows(wazuh_msi_path, wazuh_manager, agent_name):
+def install_wazuh_agent_windows(wazuh_msi_path, wazuh_manager, agent_name, group_name):
     """Install Wazuh agent on Windows using msiexec."""
     command = [
         'msiexec',
         '/i', str(wazuh_msi_path),
         f'WAZUH_MANAGER="{wazuh_manager}"',
+        f'WAZUH_AGENT_GROUP="{group_name}"',
         f'WAZUH_AGENT_NAME="{agent_name}"',
         '/quiet',
         '/norestart',
@@ -80,16 +81,20 @@ def create_windows_service(clnt_path):
         sys.exit(1)
 
 # Function to install Wazuh agent (Linux)
-def install_wazuh_agent_linux(wazuh_msi_path, wazuh_manager, agent_name):
+def install_wazuh_agent_linux(wazuh_msi_path, wazuh_manager, agent_name, group_name):
     """Install Wazuh agent on Linux using dpkg."""
     command = [
         'sudo', 'WAZUH_MANAGER=' + wazuh_manager,
+        'WAZUH_AGENT_GROUP=' + group_name,
         'WAZUH_AGENT_NAME=' + agent_name,
         'dpkg', '-i', str(wazuh_msi_path),
     ]
     try:
         print(f"Running command: {' '.join(command)}")
         subprocess.run(command, check=True)
+        subprocess.run(["sudo", "systemctl", "daemon-reload"], check=True)
+        subprocess.run(["sudo", "systemctl", "enable", "wazuh-agent"], check=True)
+        subprocess.run(["sudo", "systemctl", "start", "wazuh-agent"], check=True)
         print("Wazuh agent installed successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Error installing Wazuh agent: {e}")
@@ -146,6 +151,7 @@ def main():
     parser = argparse.ArgumentParser(description="Install and configure DeepDefend.")
     parser.add_argument('xdr_srvr_ip', type=str, help='IP address of the xdr server.')
     parser.add_argument('agent_name', type=str, help='Name for the agent.')
+    parser.add_argument('group_name', type=str, help='Agent group')
     parser.add_argument('bkpmgt_srvr_ip', type=str, help='IP address of bkpmgt server')
 
     args = parser.parse_args()
@@ -153,6 +159,7 @@ def main():
     # Get the Wazuh Manager and Agent Name from command-line arguments
     wazuh_manager = args.xdr_srvr_ip
     agent_name = args.agent_name
+    group_name = args.group_name
 
     platform_type = platform.system()
 
@@ -162,7 +169,7 @@ def main():
     
     if platform_type == "Windows":
         target_dir = r'C:\Program Files\DeepDefend'  # Set target directory
-        install_wazuh_agent_windows(wazuh_msi_path, wazuh_manager, agent_name)
+        install_wazuh_agent_windows(wazuh_msi_path, wazuh_manager, agent_name, group_name)
         extract_clnt_windows(clnt_path)
         # Create config file in the target directory based on arguments
         create_config(vars(args), target_dir)
@@ -170,7 +177,7 @@ def main():
 
     elif platform_type == "Linux":
         target_dir = r'/opt/DeepDefend'  # Set target directory
-        install_wazuh_agent_linux(wazuh_msi_path, wazuh_manager, agent_name)
+        install_wazuh_agent_linux(wazuh_msi_path, wazuh_manager, agent_name, group_name)
         extract_clnt_linux(clnt_path)
         # Create config file in the target directory based on arguments
         create_config(vars(args), target_dir)
