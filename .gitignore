@@ -1,5 +1,7 @@
 .venv
 **/__pycache__
+**/bkpmgt.db
 **/restic*
 **/media
 **/wazuh-agent*
+**/nssm.exe

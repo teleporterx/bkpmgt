@@ -43,6 +43,7 @@ Write-Host "Changed directory to installer: $installerDir"
 # Ensure that the clnt.exe and wazuh-agent.msi exist
 $clntExe = Join-Path $clntDir "dist\clnt.exe"
 $wazuhMsi = Join-Path $installerDir "wazuh-agent.msi"
+$nssmExe = Join-Path $installerDir "nssm.exe"
 
 if (-not (Test-Path $clntExe)) {
     Write-Warning "clnt.exe not found in dist/ directory. Ensure the build was successful."
@@ -56,4 +57,8 @@ if (-not (Test-Path $wazuhMsi)) {
 
 # Run pyinstaller again to bundle the installer script
 Write-Host "Bundling installer..."
-pyinstaller --onefile --add-data "$($clntExe):." --add-data "$($wazuhMsi):." deepsec_installer.py
+pyinstaller --onefile --add-data "$($nssmExe):." --add-data "$($clntExe):." --add-data "$($wazuhMsi):." deepsec_installer.py
+
+Set-Location -Path $rootDir
+
+Write-Host "Build complete!"

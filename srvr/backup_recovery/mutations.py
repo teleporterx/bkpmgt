@@ -43,6 +43,8 @@ class BackupMutations:
             "command_history": command_history,
         }
 
+        # no scheduling stuff as it's a one-time configuration task, and scheduling it doesn’t add much value.
+
         # Get the client's queue
         queue = manager.queues.get(system_uuid)
         if not queue:
@@ -65,7 +67,7 @@ class BackupMutations:
         command_history: Optional[bool] = None,
         scheduler: Optional[str] = None,
         scheduler_priority: Optional[int] = None,
-        interval: Optional[TimeDurationInput] = None, # List of date-time strings
+        interval: Optional[TimeDurationInput] = None,
         timelapse_array: Optional[List[str]] = None  # List of date-time strings        
     ) -> str:
         # Check if the client is connected
@@ -87,6 +89,10 @@ class BackupMutations:
             "password": password,
             "command_history": command_history,
         }
+
+        """
+        Retrieving or listing snapshots could be useful for auditing purposes, reporting, or triggering notifications when new snapshots are available. Scheduling could make sense here if you need periodic checks or periodic reports of snapshot status.
+        """
 
         if scheduler:
             # task_message updates for scheduler priority

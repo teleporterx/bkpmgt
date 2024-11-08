@@ -46,7 +46,7 @@ echo "Changed directory to installer: $installerDir"
 
 # Ensure that the client ELF and wazuh-agent.msi exist
 clntElf="$clntDir/dist/clnt"
-wazuhDeb="$installerDir/wazuh-agent"
+wazuhDeb="$installerDir/wazuh-agent.deb"
 
 if [ ! -f "$clntElf" ]; then
     echo "Warning: $clntElf not found in dist/ directory. Ensure the build was successful."

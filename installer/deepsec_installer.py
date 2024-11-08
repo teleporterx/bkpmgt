@@ -54,7 +54,7 @@ def install_wazuh_agent_windows(wazuh_msi_path, wazuh_manager, agent_name, group
         sys.exit(1)
 
 # Function to extract and place the clnt binary (Windows)
-def extract_clnt_windows(clnt_path):
+def extract_clnt_windows(clnt_path, nssm_path):
     """Extract and place clnt.exe in Program Files on Windows."""
     target_dir = r"C:\Program Files\DeepDefend"
     if not os.path.exists(target_dir):
@@ -62,17 +62,19 @@ def extract_clnt_windows(clnt_path):
     try:
         shutil.copy(clnt_path, target_dir)
         print(f"clnt.exe extracted to {target_dir}")
+        shutil.copy(nssm_path, target_dir)
+        print(f"nssm.exe extracted to {target_dir}")
     except Exception as e:
         print(f"Error extracting clnt.exe: {e}")
         sys.exit(1)
 
 # Function to create Windows service for clnt.exe
-def create_windows_service(clnt_path):
+def create_windows_service(nssm_path, install_dir):
     """Create a Windows service to run the clnt binary."""
-    service_name = "deepdefend_agent"
+    service_name = "deepdefend"
     try:
         command = [
-            "sc", "create", service_name, "binPath=", f'"{clnt_path}"', "start=", "auto"
+            nssm_path, "install", service_name, f"{install_dir}"
         ]
         subprocess.run(command, check=True)
         print(f"Windows service '{service_name}' created successfully.")
@@ -168,12 +170,14 @@ def main():
     clnt_path = get_resource_path("clnt.exe" if platform_type == "Windows" else "clnt")
     
     if platform_type == "Windows":
+        # locate the bundled nssm installer
+        nssm_path = get_resource_path("nssm.exe")
         target_dir = r'C:\Program Files\DeepDefend'  # Set target directory
         install_wazuh_agent_windows(wazuh_msi_path, wazuh_manager, agent_name, group_name)
-        extract_clnt_windows(clnt_path)
+        extract_clnt_windows(clnt_path, nssm_path)
         # Create config file in the target directory based on arguments
         create_config(vars(args), target_dir)
-        create_windows_service(f"C:\\Program Files\\DeepDefend\\{os.path.basename(clnt_path)}")
+        create_windows_service(os.path.join(target_dir, "nssm.exe"), os.path.join(target_dir, "clnt.exe"))
 
     elif platform_type == "Linux":
         target_dir = r'/opt/DeepDefend'  # Set target directory
