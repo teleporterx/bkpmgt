@@ -6,7 +6,7 @@ from backup_recovery.s3_helper import s3_restic_helper
 import logging
 from typing import List, Optional
 from datetime import datetime, timezone
-
+from backup_recovery.mut_validations import *
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -68,8 +68,10 @@ class BackupMutations:
         scheduler: Optional[str] = None,
         scheduler_priority: Optional[int] = None,
         interval: Optional[TimeDurationInput] = None,
-        timelapse_array: Optional[List[str]] = None  # List of date-time strings        
+        timelapse_array: Optional[List[str]] = None,  # List of date-time strings        
+        scheduler_repeats: Optional[str] = None
     ) -> str:
+        
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
             return "Error: Client not connected"
@@ -97,6 +99,14 @@ class BackupMutations:
         if scheduler:
             # task_message updates for scheduler priority
             task_message["scheduler_priority"] = scheduler_priority
+            scheduler_repeats_validation = validate_scheduler_repeats(scheduler_repeats)
+            if "Error" in scheduler_repeats_validation:
+                # return scheduler_repeats_validation  # Handle validation error
+                return "Error: Invalid scheduler_repeats input!"
+            else:
+                # Proceed with the valid value of scheduler_repeats
+                task_message["scheduler_repeats"] = scheduler_repeats_validation
+            #task_message["scheduler_repeats"] = scheduler_repeats
 
             # task_message updates for scheduler types
             scheduling_action = {
@@ -140,10 +150,10 @@ class BackupMutations:
         repo_path: str,
         password: str,
         paths: List[str],
-        command_history: bool,
-        exclude: List[str] = None,
-        tags: List[str] = None,
-        custom_options: List[str] = None,
+        command_history: Optional[bool] = None,
+        exclude: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
+        custom_options: Optional[List[str]] = None,
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
@@ -184,10 +194,10 @@ class BackupMutations:
         password: str,
         snapshot_id: str,
         target_path: str,
-        command_history: bool,
-        exclude: List[str] = None,
-        include: List[str] = None,
-        custom_options: List[str] = None,
+        command_history: Optional[bool] = None,
+        exclude: Optional[List[str]] = None,
+        include: Optional[List[str]] = None,
+        custom_options: Optional[List[str]] = None,
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
@@ -227,7 +237,7 @@ class BackupMutations:
         region: str,
         bucket_name: str,
         password: str,
-        aws_session_token: str = None,
+        aws_session_token: Optional[str] = None,
     ) -> str:
         
         try:
@@ -259,7 +269,7 @@ class BackupMutations:
         region: str,
         bucket_name: str,
         password: str,
-        aws_session_token: str = None,
+        aws_session_token: Optional[str] = None,
     ) -> str:
 
         try:
@@ -293,11 +303,11 @@ class BackupMutations:
         bucket_name: str,
         password: str,
         paths: List[str],
-        command_history: bool,
-        exclude: List[str] = None,
-        tags: List[str] = None,
-        custom_options: List[str] = None,
-        aws_session_token: str = None,
+        command_history: Optional[bool] = None,
+        exclude: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
+        custom_options: Optional[List[str]] = None,
+        aws_session_token: Optional[str] = None,
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:
@@ -345,11 +355,11 @@ class BackupMutations:
         password: str,
         snapshot_id: str,
         target_path: str,
-        command_history: bool,
-        exclude: List[str] = None,
-        include: List[str] = None,
-        custom_options: List[str] = None,
-        aws_session_token: str = None,
+        command_history: Optional[bool] = None,
+        exclude: Optional[List[str]] = None,
+        include: Optional[List[str]] = None,
+        custom_options: Optional[List[str]] = None,
+        aws_session_token: Optional[str] = None,
     ) -> str:
         # Check if the client is connected
         if system_uuid not in manager.active_connections:

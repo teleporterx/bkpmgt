@@ -3,5 +3,7 @@
 **/bkpmgt.db
 **/restic*
 **/media
+**/restored
+**/sqlite3*
 **/wazuh-agent*
 **/nssm.exe
