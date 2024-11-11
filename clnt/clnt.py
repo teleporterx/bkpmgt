@@ -240,7 +240,7 @@ async def agent():
                         # Example: await websocket.send("Some data")
                         # Or some form of inbound message handling
 
-                        if not websocket.open:
+                        if websocket.state != websockets.protocol.State.OPEN:
                             logger.warning("WebSocket connection closed.")
                             break;
                         
