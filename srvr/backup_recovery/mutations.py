@@ -68,7 +68,7 @@ class BackupMutations:
         scheduler: Optional[str] = None,
         scheduler_priority: Optional[int] = None,
         interval: Optional[TimeDurationInput] = None,
-        timelapse_array: Optional[List[str]] = None,  # List of date-time strings        
+        timelapse_array: Optional[List[str]] = None,  # List of date-time strings; ISO 8601 format
         scheduler_repeats: Optional[str] = None
     ) -> str:
         
