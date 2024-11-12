@@ -190,6 +190,7 @@ async def consume_messages(system_uuid, connection, websocket):
 
                     if message_type.startswith("schedule_"):
                         # Write to schedule ledger
+                        await task_scheduler(message_data, websocket)
                         await save_scheduled_task(message_data)
                     else:
                         # Regular message handling

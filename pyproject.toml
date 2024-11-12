@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "bkpmgt"
+version = "0.1.0"
+description = "Backup Management Backend"
+authors = ["octocroc <crctpus@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.14"
+strawberry-graphql = "^0.248.1"
+motor = "^3.6.0"
+fastapi = "^0.115.4"
+uvicorn = "^0.32.0"
+websockets = "^14.0"
+aio-pika = "^9.4.3"
+pyjwt = "^2.9.0"
+requests = "^2.32.3"
+boto3 = "^1.35.58"
+cryptography = "^43.0.3"
+aiosqlite = "^0.20.0"
+commentjson = "^0.9.0"
+apscheduler = "^3.10.4"
+sqlalchemy = "^2.0.36"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
