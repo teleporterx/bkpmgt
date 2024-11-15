@@ -33,21 +33,29 @@ def create_config(config_params, target_dir):
         print(f"Error creating config file: {e}")
         sys.exit(1)
 
+# Function to extract and place the Wazuh MSI (Windows)
+def extract_msi_windows(wazuh_msi_path, target_dir):
+    """Extract and place the wazuh-agent.msi into the target directory on Windows."""
+    try:
+        # Ensure target directory exists
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+
+        # Extract and copy the MSI file to the target directory
+        shutil.copy(wazuh_msi_path, target_dir)
+        print(f"Wazuh MSI extracted to {target_dir}")
+    except Exception as e:
+        print(f"Error extracting wazuh MSI: {e}")
+        sys.exit(1)
+
 # Function to install Wazuh agent (Windows)
 def install_wazuh_agent_windows(wazuh_msi_path, wazuh_manager, agent_name, group_name):
     """Install Wazuh agent on Windows using msiexec."""
-    command = [
-        'msiexec',
-        '/i', str(wazuh_msi_path),
-        f'WAZUH_MANAGER="{wazuh_manager}"',
-        f'WAZUH_AGENT_GROUP="{group_name}"',
-        f'WAZUH_AGENT_NAME="{agent_name}"',
-        '/quiet',
-        '/norestart',
-    ]
+    command = f"msiexec /i \"{wazuh_msi_path}\" WAZUH_MANAGER=\"{wazuh_manager}\" WAZUH_AGENT_GROUP=\"{group_name}\" WAZUH_AGENT_NAME=\"{agent_name}\" /quiet"
     try:
-        print(f"Running command: {' '.join(command)}")
-        subprocess.run(command, check=True)
+        print(f"Running command: {command}")
+        # Use shell=True to execute the command as a string
+        subprocess.run(command, check=True, shell=True)
         print("Wazuh agent installed successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Error installing Wazuh agent: {e}")
@@ -173,7 +181,9 @@ def main():
         # locate the bundled nssm installer
         nssm_path = get_resource_path("nssm.exe")
         target_dir = r'C:\Program Files\DeepDefend'  # Set target directory
-        install_wazuh_agent_windows(wazuh_msi_path, wazuh_manager, agent_name, group_name)
+        # Extract the MSI to the DeepDefend directory
+        extract_msi_windows(wazuh_msi_path, target_dir)
+        install_wazuh_agent_windows(os.path.join(target_dir, "wazuh-agent.msi"), wazuh_manager, agent_name, group_name)
         extract_clnt_windows(clnt_path, nssm_path)
         # Create config file in the target directory based on arguments
         create_config(vars(args), target_dir)
