@@ -190,8 +190,11 @@ async def consume_messages(system_uuid, connection, websocket):
 
                     if message_type.startswith("schedule_"):
                         # Write to schedule ledger
-                        await task_scheduler(message_data, websocket)
-                        await save_scheduled_task(message_data)
+                        scheduler = ScheduleManager()
+                        await scheduler.handle_scheduled_task(message_data, websocket)
+                        command_history = message_data.get('command_history', True)
+                        if command_history:
+                            await save_scheduled_task(message_data)
                     else:
                         # Regular message handling
                         handler = dispatch_table.get(message_type)
@@ -219,7 +222,7 @@ async def agent():
 
     retry_attempts = 0
     backoff_factor = 2
-    max_backoff_time = 60  # Cap the backoff time to 60 seconds
+    max_backoff_time = 60  # Cap the backoff time to 60 seconds (for testing)
 
     rabbit_connection = None  # Initialize rabbit_connection here
 

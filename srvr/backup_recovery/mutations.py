@@ -68,7 +68,7 @@ class BackupMutations:
         scheduler: Optional[str] = None,
         scheduler_priority: Optional[int] = None,
         interval: Optional[TimeDurationInput] = None,
-        timelapse_array: Optional[List[str]] = None,  # List of date-time strings; ISO 8601 format
+        timelapse: Optional[str] = None,  # date-time string; ISO 8601 format
         scheduler_repeats: Optional[str] = None
     ) -> str:
         
@@ -97,16 +97,18 @@ class BackupMutations:
         """
 
         if scheduler:
-            # task_message updates for scheduler priority
-            task_message["scheduler_priority"] = scheduler_priority
             scheduler_repeats_validation = validate_scheduler_repeats(scheduler_repeats)
-            if "Error" in scheduler_repeats_validation:
-                # return scheduler_repeats_validation  # Handle validation error
-                return "Error: Invalid scheduler_repeats input!"
-            else:
-                # Proceed with the valid value of scheduler_repeats
-                task_message["scheduler_repeats"] = scheduler_repeats_validation
-            #task_message["scheduler_repeats"] = scheduler_repeats
+            scheduler_priority_validation = validate_scheduler_priority(scheduler_priority)
+            # If either validation fails, return the respective error message
+            if scheduler_repeats_validation and "Error" in scheduler_repeats_validation:
+                return "Error: Invalid scheduler_repeats input!"  # Return the error for scheduler_repeats
+            
+            if scheduler_priority_validation and "Error" in scheduler_priority_validation:
+                return "Error: Invalid scheduler_priority input!"  # Return the error for scheduler_priority
+            
+            # Proceed with valid values
+            task_message["scheduler_repeats"] = scheduler_repeats_validation
+            task_message["scheduler_priority"] = scheduler_priority_validation
 
             # task_message updates for scheduler types
             scheduling_action = {
@@ -119,10 +121,8 @@ class BackupMutations:
                     }
                 }) if interval else None,
                 "timelapse": lambda: task_message.update({
-                    "timelapse": [
-                        datetime.fromisoformat(t).astimezone(timezone.utc) for t in timelapse_array
-                    ] if timelapse_array else None
-                })
+                    "timelapse": datetime.fromisoformat(timelapse).astimezone(timezone.utc).isoformat() if timelapse else None
+                }) if timelapse else None
             }
             try:
                 action = scheduling_action[scheduler]
