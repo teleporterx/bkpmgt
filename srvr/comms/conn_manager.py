@@ -33,13 +33,13 @@ class DataHandler:
         logger.info(f"Handling other message type for {system_uuid}: {message}")
         # Implementation...
 
-    async def handle_message(self, system_uuid, message):
+    async def handle_message(self, system_uuid, message, org):
         message_type = message.get("type")
         handler = self.dispatch_table.get(message_type)
         if handler:
-            await handler(system_uuid, message)
+            await handler(system_uuid, message, org)
         else:
-            logger.warning(f"Unknown message type {message_type} from {system_uuid}")
+            logger.warning(f"Unknown message type {message_type} from {system_uuid} in org {org}")
 
 # WebSocket manager
 class ConnectionManager:
@@ -78,14 +78,28 @@ class ConnectionManager:
             logger.warning(f"Connection denied for {system_uuid}: RabbitMQ is down.")
             await websocket.close(code=4000)  # Close the connection with a custom code
             return
+        # Extract the 'org' query parameter from the WebSocket connection
+        org = websocket.query_params.get("org")  # This retrieves the 'org' parameter from the URL
+
+        # Check if 'org' was provided
+        if not org:
+            logger.warning(f"Connection from {system_uuid} denied: 'org' parameter is missing.")
+            await websocket.close(code=4001)  # Close with an error code if 'org' is missing
+            return
 
         await websocket.accept()
         self.active_connections[system_uuid] = websocket
-        logger.info(f"Client {system_uuid} connected.")
+        logger.info(f"Client {system_uuid} connected with org: {org}.")
+        # Update the client's status in MongoDB, including the 'org' field
         await status_collection.update_one(
             {"system_uuid": system_uuid},
-            {"$set": {"status": "connected"}},
-            upsert=True
+            {
+                "$set": {
+                    "status": "connected",
+                    "org": org  # Save the 'org' field
+                }
+            },
+            upsert=True # If no document is found, create a new one
         )
         await self.create_queue(system_uuid)  # Create a queue for this client
 
@@ -121,7 +135,8 @@ class ConnectionManager:
                 logger.info(f"Received message from {system_uuid}: {data}")
 
                 message = json.loads(data)
-                await self.data_handler.handle_message(system_uuid, message)
+                org = websocket.query_params.get("org")  # This retrieves the 'org' parameter from the URL
+                await self.data_handler.handle_message(system_uuid, message, org)
 
         except WebSocketDisconnect:
             await self.disconnect(system_uuid)

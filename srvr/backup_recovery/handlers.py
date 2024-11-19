@@ -57,7 +57,7 @@ class BackupHandlers:
             # result_snapshot_contents = await self.snapshot_contents_collection.delete_many({"timestamp": {"$lt": cutoff_time}})
             # logger.info(f"Deleted {result_snapshot_contents.deleted_count} old snapshot contents.")
 
-    async def handle_response_init_local_repo(self, system_uuid, message):
+    async def handle_response_init_local_repo(self, system_uuid, message, org):
         response_timestamp = datetime.now(timezone.utc)
         summary = message.get("summary", {})
 
@@ -67,6 +67,7 @@ class BackupHandlers:
         # Store the repo initialization data in MongoDB
         document = {
             "systemUuid": system_uuid,
+            "org": org,
             "response_timestamp": response_timestamp,
             "summary": summary,
         }
@@ -82,7 +83,7 @@ class BackupHandlers:
         except Exception as e:
             logger.error(f"Error storing repo initialization data: {e}")
 
-    async def handle_response_local_repo_snapshots(self, system_uuid, message):
+    async def handle_response_local_repo_snapshots(self, system_uuid, message, org):
         snapshots = message.get("snapshots", [])
         repo_path = message.get("repo_path")  # Retrieve the repo name
         response_timestamp = datetime.now(timezone.utc)  # Get current timestamp
@@ -100,6 +101,7 @@ class BackupHandlers:
         # Document structure to insert/upsert
         document = {
             "systemUuid": system_uuid,
+            "org": org,
             "response_timestamp": response_timestamp,
             "repo_path": repo_path,
             "snapshots": snapshots  # Directly include snapshots
@@ -114,7 +116,7 @@ class BackupHandlers:
         
         logger.info(f"Stored repo snapshot response for {system_uuid} for repo path {repo_path}")
 
-    async def handle_response_local_repo_backup(self, system_uuid, message):
+    async def handle_response_local_repo_backup(self, system_uuid, message, org):
         response_timestamp = datetime.now(timezone.utc)
         repo_path = message.get("repo_path")
         backup_output = message.get("backup_output")
@@ -131,6 +133,7 @@ class BackupHandlers:
         # Document structure to insert/upsert
         document = {
             "systemUuid": system_uuid,
+            "org": org,
             "response_timestamp": response_timestamp,
             "repo_path": repo_path,
             "backup_output": backup_output,
@@ -147,7 +150,7 @@ class BackupHandlers:
         except Exception as e:
             logger.error(f"Error storing backup response data: {e}")
 
-    async def handle_response_local_repo_restore(self, system_uuid, message):
+    async def handle_response_local_repo_restore(self, system_uuid, message, org):
         """
         Handle the response from the local repo restore operation.
         This function processes the restore output and updates the server state or logs as needed.
@@ -168,6 +171,7 @@ class BackupHandlers:
         # Document structure to insert/upsert
         document = {
             "systemUuid": system_uuid,
+            "org": org,
             "response_timestamp": response_timestamp,
             "repo_path": repo_path,
             "restore_output": restore_output,
@@ -184,7 +188,7 @@ class BackupHandlers:
         except Exception as e:
             logger.error(f"Error storing restore response data: {e}")
 
-    async def handle_response_init_s3_repo(self, system_uuid, message):
+    async def handle_response_init_s3_repo(self, system_uuid, message, org):
         response_timestamp = datetime.now(timezone.utc)
         summary = message.get("summary", {})
 
@@ -194,6 +198,7 @@ class BackupHandlers:
         # Store the repo initialization data in MongoDB
         document = {
             # "systemUuid": system_uuid, # as this function is not endpoint specific
+            "org": org,
             "response_timestamp": response_timestamp,
             "summary": summary,
         }
@@ -210,7 +215,7 @@ class BackupHandlers:
         except Exception as e:
             logger.error(f"Error storing repo initialization data: {e}")
 
-    async def handle_response_s3_repo_snapshots(self, system_uuid, message):
+    async def handle_response_s3_repo_snapshots(self, system_uuid, message, org):
         snapshots = message.get("snapshots", [])
         s3_url = message.get("s3_url")  # Retrieve the repo name
         response_timestamp = datetime.now(timezone.utc)  # Get current timestamp
@@ -228,6 +233,7 @@ class BackupHandlers:
         
         # Document structure to insert/upsert
         document = {
+            "org": org,
             "response_timestamp": response_timestamp,
             "s3_url": s3_url,
             "snapshots": snapshots  # Directly include snapshots
@@ -244,7 +250,7 @@ class BackupHandlers:
         except Exception as e:
             logger.error(f"Error storing repo snapshots data: {e}")
 
-    async def handle_response_s3_repo_backup(self, system_uuid, message):
+    async def handle_response_s3_repo_backup(self, system_uuid, message, org):
         response_timestamp = datetime.now(timezone.utc)  # Get current timestamp
         s3_url = message.get("s3_url")  # Retrieve the repo name
         backup_output = message.get("backup_output")
@@ -267,6 +273,7 @@ class BackupHandlers:
         
         # Document structure to insert/upsert
         document = {
+            "org": org,
             "response_timestamp": response_timestamp,
             "s3_url": s3_url,
             "backup_output": backup_output  # Directly include snapshots
@@ -283,7 +290,7 @@ class BackupHandlers:
         except Exception as e:
             logger.error(f"Error storing repo backup data: {e}")
 
-    async def handle_response_s3_repo_restore(self, system_uuid, message):
+    async def handle_response_s3_repo_restore(self, system_uuid, message, org):
         response_timestamp = datetime.now(timezone.utc)
         s3_url = message.get("s3_url")
         restore_output = message.get("restore_output")
@@ -295,6 +302,7 @@ class BackupHandlers:
         # Document structure to insert/upsert
         document = {
             "systemUuid": system_uuid,
+            "org": org,
             "response_timestamp": response_timestamp,
             "s3_url": s3_url,
             "restore_output": restore_output

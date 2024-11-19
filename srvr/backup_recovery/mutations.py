@@ -1,3 +1,4 @@
+# backup_recovery/mutations.py
 import strawberry
 import json
 import aio_pika
@@ -232,6 +233,7 @@ class BackupMutations:
     @strawberry.mutation
     async def init_s3_repo(
         self,
+        org: str,
         aws_access_key_id: str,
         aws_secret_access_key: str,
         region: str,
@@ -247,7 +249,8 @@ class BackupMutations:
                 region, 
                 bucket_name, 
                 password, 
-                aws_session_token, 
+                aws_session_token,
+                org,
                 "init"
             )
             

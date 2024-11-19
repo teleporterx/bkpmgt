@@ -22,7 +22,8 @@ def create_config(config_params, target_dir):
     config_path = os.path.join(target_dir, 'config.jsonc')
 
     config = {
-        "SRVR_IP": config_params.get('bkpmgt_srvr_ip')
+        "SRVR_IP": config_params.get('bkpmgt_srvr_ip'),
+        "ORG": config_params.get('group_name')
     }
 
     try:

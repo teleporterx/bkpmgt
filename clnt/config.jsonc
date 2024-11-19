@@ -1,3 +1,4 @@
 {
-    "SRVR_IP": "localhost"
+    "SRVR_IP": "localhost",
+    "ORG": "manipal_hospitals"
 }

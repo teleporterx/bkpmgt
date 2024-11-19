@@ -6,6 +6,7 @@
 """
 
 from .mutations import BackupMutations # will possibly trigger a circular import issue if comms.conn_manager calls this
+from .queries import BackupQueries # will possibly trigger a circular import issue if comms.conn_manager calls this
 
 """
 do not use

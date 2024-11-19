@@ -1,3 +1,4 @@
+# backup_recovery/s3_helper.py
 import boto3 # aws SDK for Python for S3 stuff
 import botocore # for exception handling
 import logging
@@ -10,7 +11,7 @@ from comms import DataHandler # imports the DataHandler class from the main scri
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, bucket_name, password, aws_session_token, func_type):
+async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, bucket_name, password, aws_session_token, org, func_type):
 
     if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name or not password:
         return {"error": "Missing essential initialization data!"}
@@ -109,7 +110,7 @@ async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, buc
 
         data_handler = DataHandler()
         # Send message to backup handlers.py to store results in mongo
-        await data_handler.handle_message("", messages[func_type])
+        await data_handler.handle_message("", messages[func_type], org)
         return f"Successfully executed {func_type} operation at {restic_repo}"
         
     

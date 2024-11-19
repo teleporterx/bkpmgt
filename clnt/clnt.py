@@ -1,11 +1,11 @@
+# clnt.py
 import logging
 import asyncio
 import websockets
 import json
 import signal
 import aio_pika
-from sys_utils.uuid_info import get_system_uuid
-from sys_utils.resource_helper import *
+from sys_utils import *
 import requests  # Import requests for HTTP calls
 from fastapi import FastAPI
 import uvicorn
@@ -14,41 +14,24 @@ from fastapi.responses import HTMLResponse
 import os
 import sys
 from backup_utils import *
-import commentjson
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get the directory where the executable is located
-BIN_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
-
-# Construct the full path to the config file
-CONFIG_FILE_PATH = os.path.join(BIN_DIR, "config.jsonc")
-
-def load_config():
-    """
-    Load the configuration from the JSONC file.
-    """
-    if not os.path.exists(CONFIG_FILE_PATH):
-        raise FileNotFoundError(f"Configuration file not found: {CONFIG_FILE_PATH}")
-    
-    with open(CONFIG_FILE_PATH, 'r') as f:
-        config = commentjson.load(f)
-    return config
-
 # Load the configuration
 config = load_config()
 
-# Accessing SRVR_IP from the loaded config
+# Accessing SRVR_IP & ORG from the loaded config
 SRVR_IP = config.get('SRVR_IP')
+ORG = config.get('ORG')
 
 # Check if SRVR_IP exists in the config, otherwise exit with a message
 if not SRVR_IP:
     logger.error("SRVR_IP not found in config. Exiting.")
     sys.exit("SRVR_IP configuration missing!")
 
-logger.info(f"config loaded! .. SRVR IP: {SRVR_IP}")
+logger.info(f"config loaded! .. \n\n-x-x-\nSRVR IP: {SRVR_IP}\nORG    : {ORG}\n-x-x-\n")
 
 # Global flag to control the running state of the agent
 running = True
@@ -218,7 +201,8 @@ async def agent():
         logger.error("Authentication routine failed!! Exiting...") # Failed to obtain JWT token
         return
     
-    bhive_uri = f"ws://{SRVR_IP}:5000/ws/{system_uuid}?token={token}"  # Include the token in the URI
+    # This passes the ORG along with system_uuid and token to the server via the WebSocket URL
+    bhive_uri = f"ws://{SRVR_IP}:5000/ws/{system_uuid}?token={token}&org={config.get('ORG')}"
 
     retry_attempts = 0
     backoff_factor = 2
@@ -278,7 +262,7 @@ async def agent():
         logger.info("Graceful shutdown target reached...")
 
 async def run_uvicorn():
-    config = uvicorn.Config(app, host="127.0.0.1", port=8000, reload=True)
+    config = uvicorn.Config(app, host="127.0.0.1", port=8080, reload=True)
     server = uvicorn.Server(config)
     await server.serve()
 
