@@ -5,6 +5,7 @@ import os
 import subprocess
 import shutil
 import json
+from uuid_info import get_system_uuid
 
 def get_resource_path(filename):
     """Return the resource path depending on if we are bundled or running as a script."""
@@ -158,10 +159,11 @@ def create_linux_service(clnt_path):
         sys.exit(1)
 
 def main():
+    # idea: this data can be loaded from a CONFIG file
     # Set up command-line argument parsing
     parser = argparse.ArgumentParser(description="Install and configure DeepDefend.")
     parser.add_argument('xdr_srvr_ip', type=str, help='IP address of the xdr server.')
-    parser.add_argument('agent_name', type=str, help='Name for the agent.')
+    # parser.add_argument('agent_name', type=str, help='Name for the agent.')
     parser.add_argument('group_name', type=str, help='Agent group')
     parser.add_argument('bkpmgt_srvr_ip', type=str, help='IP address of bkpmgt server')
 
@@ -169,7 +171,7 @@ def main():
 
     # Get the Wazuh Manager and Agent Name from command-line arguments
     wazuh_manager = args.xdr_srvr_ip
-    agent_name = args.agent_name
+    agent_name = get_system_uuid()
     group_name = args.group_name
 
     platform_type = platform.system()
