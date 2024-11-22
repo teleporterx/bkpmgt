@@ -7,6 +7,7 @@ import boto3 # AWS SDK for Python
 import botocore # for exception handling
 from backup_utils.db_manager import save_command
 from sys_utils.resource_helper import *
+import uuid
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -151,6 +152,9 @@ async def handle_get_local_repo_snapshots(params, websocket):
         logger.error(f"Failed to execute command: {e}")
 
 async def handle_do_local_repo_backup(params, websocket):
+
+    task_uuid = str(uuid.uuid4())  # Generate a unique task UUID for this particular backup task
+
     logger.info(f"Received request to perform local repo backup for repo: {params['repo_path']}")
 
     repo_path = params.get('repo_path')
@@ -181,6 +185,18 @@ async def handle_do_local_repo_backup(params, websocket):
     logger.info(f"this is the command that would be executed {command}")
 
     try:
+        # task status
+        message_to_server = {
+            "task_uuid": task_uuid, # non-persistent, move out to local DB later
+            "type": "response_local_repo_backup",  # Define the message type for backup
+            "repo_path": repo_path,
+            "backup_output": "",
+            "task_status": "processing",
+        }
+
+        # send first message
+        await websocket.send(json.dumps(message_to_server, indent=2))
+
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
 
@@ -212,14 +228,16 @@ async def handle_do_local_repo_backup(params, websocket):
 
             # Create a message to send to the server
             message_to_server = {
+                "task_uuid": task_uuid,
                 "type": "response_local_repo_backup",  # Define the message type for backup
                 "repo_path": repo_path,
                 "backup_output": summary_message,
+                "task_status": "completed",
             }
 
-            # Send the message over WebSocket
+            # Send the second update message (for task status) over WebSocket
             await websocket.send(json.dumps(message_to_server, indent=2))
-            logger.info(f"Backup data sent to server for repo: {repo_path}")
+            logger.info(f"Backup update sent to server for repo: {repo_path}")
         else:
             logger.error("No JSON found in the command output.")
 
@@ -232,6 +250,7 @@ async def handle_do_local_repo_restore(params, websocket):
     """
     Handle 'do_local_repo_restore' message type to restore files from a local Restic repository.
     """
+    task_uuid = str(uuid.uuid4())  # Generate a unique task UUID for this particular restore task
     logger.info(f"Received request to perform local repo restore for repo: {params['repo_path']}")
 
     repo_path = params.get('repo_path')
@@ -264,6 +283,14 @@ async def handle_do_local_repo_restore(params, websocket):
     logger.info(f"Executing restore command: {command}")
 
     try:
+        # task status
+        message_to_server = {
+            "task_uuid": task_uuid, # non-persistent, move out to local DB later
+            "type": "response_local_repo_backup",  # Define the message type for backup
+            "repo_path": repo_path,
+            "restore_output": "",
+            "task_status": "processing",
+        }
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
 
@@ -295,9 +322,11 @@ async def handle_do_local_repo_restore(params, websocket):
 
             # Create a message to send to the server
             message_to_server = {
+                "task_uuid": task_uuid, # non-persistent, move out to local DB later
                 "type": "response_local_repo_restore",  # Define the message type for restore
                 "repo_path": repo_path,
                 "restore_output": summary_message,
+                "task_status": "completed",
             }
 
             # Send the message over WebSocket
@@ -312,6 +341,7 @@ async def handle_do_local_repo_restore(params, websocket):
         logger.error(f"Failed to execute command: {e}")
 
 async def handle_do_s3_repo_backup(params, websocket):
+    task_uuid = str(uuid.uuid4())  # Generate a unique task UUID for this particular restore task
     logger.info(f"Received request to perform S3 repo backup for bucket: {params['bucket_name']}")
 
     bucket_name = params.get('bucket_name')
@@ -364,6 +394,14 @@ async def handle_do_s3_repo_backup(params, websocket):
     restic_repo = f"s3:s3.{region}.amazonaws.com/{bucket_name}"
 
     try:
+        # Create a message to send to the server
+        message_to_server = {
+            "task_uuid": task_uuid, # non-persistent, move out to local DB later
+            "type": "response_s3_repo_backup",  # Define the message type for restore
+            "s3_url": restic_repo,
+            "backup_output": "",
+            "task_status": "processing",
+        }
         # Check if the bucket exists before executing snapshots
         if not bucket_exists:
             return {"error": f"Bucket {bucket_name} does not exist. Cannot perform backup"}
@@ -433,9 +471,11 @@ async def handle_do_s3_repo_backup(params, websocket):
 
             # Create a message to send to the server
             message_to_server = {
+                "task_uuid": task_uuid, # non-persistent, move out to local DB later
                 "type": "response_s3_repo_backup",  # Define the message type for restore
                 "s3_url": restic_repo,
                 "backup_output": summary_message,
+                "task_status": "completed",
             }
 
             # Send the message over WebSocket
@@ -458,6 +498,8 @@ async def handle_do_s3_repo_backup(params, websocket):
         return {"error": str(e)}
 
 async def handle_do_s3_repo_restore(params, websocket):
+    task_uuid = str(uuid.uuid4())  # Generate a unique task UUID for this particular restore task
+
     logger.info(f"Received request to perform S3 repo restore for bucket: {params['bucket_name']}")
 
     bucket_name = params.get('bucket_name')
@@ -528,6 +570,14 @@ async def handle_do_s3_repo_restore(params, websocket):
     logger.info(f"Executing restore command: {command}")
 
     try:
+        # Create a message to send to the server
+        message_to_server = {
+            "task_uuid": task_uuid, # non-persistent, move out to local DB later
+            "type": "response_s3_repo_restore",  # Define the message type for restore
+            "s3_url": restic_repo,
+            "restore_output": "",
+            "task_status": "processing",
+        }
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, env=env, capture_output=True, text=True)
 
@@ -559,9 +609,11 @@ async def handle_do_s3_repo_restore(params, websocket):
 
             # Create a message to send to the server
             message_to_server = {
+                "task_uuid": task_uuid, # non-persistent, move out to local DB later
                 "type": "response_s3_repo_restore",  # Define the message type for restore
                 "s3_url": restic_repo,
                 "restore_output": summary_message,
+                "task_status": "completed",
             }
 
             # Send the message over WebSocket

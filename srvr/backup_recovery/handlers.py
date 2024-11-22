@@ -120,29 +120,34 @@ class BackupHandlers:
         response_timestamp = datetime.now(timezone.utc)
         repo_path = message.get("repo_path")
         backup_output = message.get("backup_output")
+        task_status = message.get("task_status")
+        task_uuid = message.get("task_uuid")
 
-        if not repo_path or not backup_output:
+        if not repo_path or not task_status or not task_uuid:
             logger.error("Received incomplete backup response.")
             return
+        
+        if task_status == "processing":
+            logger.info(f"client is processing backup for task ({task_uuid})...")
 
-        logger.info(f"Backup operation completed for repository: {repo_path}")
-
-        # Process the backup output, which should contain the summary
-        logger.info(f"Backup Summary: {backup_output}")
+        if task_status == "completed":
+            logger.info(f"Backup has been completed for task ({task_uuid})")
 
         # Document structure to insert/upsert
         document = {
+            "task_uuid": task_uuid,
             "systemUuid": system_uuid,
             "org": org,
             "response_timestamp": response_timestamp,
             "repo_path": repo_path,
             "backup_output": backup_output,
+            "task_status": task_status,
         }
 
         try:
             # Upsert the document (insert or update)
             await self.local_repo_backups_collection.update_one(
-                {"systemUuid": system_uuid, "repo_path": repo_path},
+                {"task_uuid": task_uuid}, # "task_uuid": task_uuid,
                 {"$set": document},
                 upsert=True
             )
@@ -158,29 +163,34 @@ class BackupHandlers:
         response_timestamp = datetime.now(timezone.utc)
         repo_path = message.get("repo_path")
         restore_output = message.get("restore_output")
+        task_status = message.get("task_status")
+        task_uuid = message.get("task_uuid")
 
-        if not repo_path or not restore_output:
+        if not repo_path or not task_status or not task_uuid:
             logger.error("Received incomplete restore response.")
             return
 
-        logger.info(f"Restore operation completed for repository: {repo_path}")
+        if task_status == "processing":
+            logger.info(f"client is processing restore for task ({task_uuid})...")
 
-        # Process the restore output (which contains the summary)
-        logger.info(f"Restore Summary: {restore_output}")
+        if task_status == "completed":
+            logger.info(f"Restore has been completed for task ({task_uuid})")
 
         # Document structure to insert/upsert
         document = {
+            "task_uuid": task_uuid,
             "systemUuid": system_uuid,
             "org": org,
             "response_timestamp": response_timestamp,
             "repo_path": repo_path,
             "restore_output": restore_output,
+            "task_status": task_status,
         }
 
         try:
             # Upsert the document (insert or update)
             await self.local_repo_restores_collection.update_one(
-                {"systemUuid": system_uuid, "repo_path": repo_path},
+                {"task_uuid": task_uuid},
                 {"$set": document},
                 upsert=True
             )
@@ -254,35 +264,33 @@ class BackupHandlers:
         response_timestamp = datetime.now(timezone.utc)  # Get current timestamp
         s3_url = message.get("s3_url")  # Retrieve the repo name
         backup_output = message.get("backup_output")
+        task_status = message.get("task_status")
+        task_uuid = message.get("task_uuid")
 
-        if not s3_url or not backup_output:
+        if not s3_url or not task_uuid or not task_status:
             logger.error("Received incomplete backup response.")
             return
 
-        # Check if there's already an existing document for this repo
-        existing_document = await self.s3_repo_backups_collection.find_one({
-            "systemUuid": system_uuid,
-            "s3_url": s3_url
-        })
+        if task_status == "processing":
+            logger.info(f"client is processing backup for task ({task_uuid})...")
 
-        if existing_document:
-            # Compare existing snapshots with new snapshots
-            if existing_document.get("backup_output") == backup_output:
-                logger.info(f"No changes detected for s3 repo {s3_url}. Skipping update.")
-                return  # No need to update if snapshots are the same
-        
+        if task_status == "completed":
+            logger.info(f"Backup has been completed for task ({task_uuid})")
+
         # Document structure to insert/upsert
         document = {
+            "task_uuid": task_uuid,
             "org": org,
             "response_timestamp": response_timestamp,
             "s3_url": s3_url,
-            "backup_output": backup_output  # Directly include snapshots
+            "backup_output": backup_output,  # Directly include snapshots
+            "task_status": task_status,
         }
 
         try:
             # Upsert the document (insert or update)
             await self.s3_repo_backups_collection.update_one(
-                {"systemUuid": system_uuid, "s3_url": s3_url},
+                {"task_uuid": task_uuid},
                 {"$set": document},  # Update the document with the new data
                 upsert=True  # Create the document if it does not exist
             )
@@ -294,24 +302,34 @@ class BackupHandlers:
         response_timestamp = datetime.now(timezone.utc)
         s3_url = message.get("s3_url")
         restore_output = message.get("restore_output")
+        task_status = message.get("task_status")
+        task_uuid = message.get("task_uuid")
 
-        if not s3_url or not restore_output:
+        if not s3_url or not task_status or not task_uuid:
             logger.error("Received incomplete restore response.")
             return
 
+        if task_status == "processing":
+            logger.info(f"client is processing restore for task ({task_uuid})...")
+
+        if task_status == "completed":
+            logger.info(f"Restore has been completed for task ({task_uuid})")
+
         # Document structure to insert/upsert
         document = {
+            "task_uuid": task_uuid,
             "systemUuid": system_uuid,
             "org": org,
             "response_timestamp": response_timestamp,
             "s3_url": s3_url,
-            "restore_output": restore_output
+            "restore_output": restore_output,
+            "task_status": task_status,
         }
 
         try:
             # Upsert the document (insert or update)
             await self.s3_repo_restores_collection.update_one(
-                {"systemUuid": system_uuid, "s3_url": s3_url},
+                {"task_uuid": task_uuid},
                 {"$set": document},
                 upsert=True
             )
