@@ -7,7 +7,7 @@ originalDirectory=$(pwd)
 cleanup() {
     # Stop the Docker containers and remove them
     echo "Stopping and removing Docker containers..."
-    docker-compose down
+    sudo docker-compose down
 
     # Return to the original directory
     cd "$originalDirectory"
@@ -16,26 +16,24 @@ cleanup() {
 # Ensure the cleanup function runs on script exit (on SIGTERM/SIGKILL or normal exit)
 trap cleanup EXIT
 
-# Check if the virtual environment is already activated
-if [ -z "$VIRTUAL_ENV" ]; then
-    # Virtual environment is not active, so activate it
-    source ./.venv/bin/activate  # Activate the virtual environment
-else
-    echo "Virtual environment is already active."
-fi
+# Dynamically get the current user's home directory
+USER_HOME=$(eval echo ~$USER)
+
+# Ensure magic is available for sudo by explicitly adding its path to the sudo environment
+export PATH=$PATH:$USER_HOME/.modular/bin
 
 # Navigate to the directory where the docker-compose.yml file is located (assuming it's in the root of the repo)
 cd "$(dirname "$0")"
 
 # Start the Docker containers with docker-compose, without recreating existing ones
 echo "Starting Docker containers with docker-compose..."
-docker-compose up -d --no-recreate
+sudo docker-compose up -d --no-recreate
 
 # Wait for RabbitMQ to be healthy
 echo "🐇 Waiting for RabbitMQ to initialize..."
 
 # Check RabbitMQ health status
-while ! docker inspect --format '{{.State.Health.Status}}' rabbitmq | grep -q "healthy"; do
+while !  sudo docker inspect --format '{{.State.Health.Status}}' rabbitmq | grep -q "healthy"; do
     echo "🥕 Waiting for RabbitMQ to become healthy..."
     sleep 2
 done
@@ -57,9 +55,27 @@ check_container_ready() {
 # Check if MongoDB is ready
 check_container_ready "🍃 MongoDB" 27017
 
-# Change to the server directory
-cd ./srvr/
+# After Docker is up and RabbitMQ & MongoDB are ready, proceed with virtual environment activation
 
-# Run the Uvicorn server in the same terminal session
-echo "🦄 Starting Uvicorn server..."
-uvicorn srvr:app --host 0.0.0.0 --port 5000
+# Check if the .magic directory exists
+if [ -d ".magic" ]; then
+    # .magic directory exists, use magic shell to activate the environment
+    echo "🪄 Using magic..."
+    echo "🦄 Starting Uvicorn server..."
+    # Instead of running `magic shell`, we use `magic run` to continue the script and run Uvicorn
+    cd ./srvr/
+    magic run uvicorn srvr:app --host 0.0.0.0 --port 5000
+else
+    # .magic directory does not exist, fall back to .venv
+    if [ -z "$VIRTUAL_ENV" ]; then
+        # Virtual environment is not active, so activate it
+        source ./.venv/bin/activate  # Activate the virtual environment
+    else
+        echo "Virtual environment is already active."
+    fi
+
+    # Run the Uvicorn server in the same terminal session
+    echo "🦄 Starting Uvicorn server..."
+    cd ./srvr/
+    uvicorn srvr:app --host 0.0.0.0 --port 5000
+fi
