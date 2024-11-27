@@ -1,21 +1,55 @@
-import datetime
+# clnt.py
 import logging
 import asyncio
 import websockets
 import json
 import signal
 import aio_pika
-from sys_utils.uuid_info import get_system_uuid
-import subprocess
-import re
+from sys_utils import *
 import requests  # Import requests for HTTP calls
+from fastapi import FastAPI
+import uvicorn
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+import os
+import sys
+from backup_utils import *
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load the configuration
+config = load_config()
+
+# Accessing SRVR_IP & ORG from the loaded config
+SRVR_IP = config.get('SRVR_IP')
+ORG = config.get('ORG')
+
+# Check if SRVR_IP exists in the config, otherwise exit with a message
+if not SRVR_IP:
+    logger.error("SRVR_IP not found in config. Exiting.")
+    sys.exit("SRVR_IP configuration missing!")
+
+logger.info(f"config loaded! .. \n\n-x-x-\nSRVR IP: {SRVR_IP}\nORG    : {ORG}\n-x-x-\n")
+
 # Global flag to control the running state of the agent
 running = True
+
+# API for Web-GUI
+app = FastAPI()
+
+static_directory = get_static_directory()
+
+# Mount static files like CSS and images
+app.mount("/static", StaticFiles(directory=static_directory), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    # Return the static index.html file from the static directory
+    index_path = os.path.join(static_directory, "index.html")
+    with open(index_path) as f:
+        return HTMLResponse(content=f.read())
 
 # Authentication Setup
 async def obtain_jwt(system_uuid, password, max_retries=5, backoff_factor=2, max_backoff_time=120):
@@ -23,7 +57,7 @@ async def obtain_jwt(system_uuid, password, max_retries=5, backoff_factor=2, max
     Obtain a JWT token by authenticating with the server.
     Retries on failure with exponential backoff.
     """
-    url = "http://localhost:5000/token"  # Update with your server URL
+    url = f"http://{SRVR_IP}:5000/token"  # Update with your server URL
     retry_attempts = 0
 
     while retry_attempts < max_retries:
@@ -57,7 +91,7 @@ async def obtain_jwt(system_uuid, password, max_retries=5, backoff_factor=2, max
     logger.error("Failed to authenticate despite multiple attempts.")
     return None
 
-# Shutdown handler
+# Shutdown & Restart handlers
 def handle_shutdown(signum, frame):
     """
     Signal handler to gracefully shut down the agent process.
@@ -70,6 +104,36 @@ def handle_shutdown(signum, frame):
 signal.signal(signal.SIGINT, handle_shutdown)  # Handle Ctrl+C
 signal.signal(signal.SIGTERM, handle_shutdown)  # Handle termination signal
 
+@app.post("/shutdown")
+async def shutdown():
+    """
+    Endpoint to trigger the shutdown process.
+    """
+    os.kill(os.getpid(), signal.SIGINT)
+    return {"message": "Shutdown initiated."}
+
+def handle_restart(signum, frame):
+    """
+    Signal handler to restart the agent process.
+    """
+    logger.info("Received restart signal. Restarting...")
+    # Set a flag or perform any cleanup needed before restarting
+    os.execv(sys.executable, ['python'] + sys.argv)  # Restart the application
+
+async def restart_agent():
+    os.execv(sys.executable, ['python'] + sys.argv)
+
+@app.post("/restart")
+async def restart():
+    """
+    Endpoint to trigger the restart process.
+    """
+    # Respond to the request first
+    response = {"message": "Restart initiated."}
+    await asyncio.sleep(0.1)  # Delay to ensure response is sent
+    asyncio.create_task(restart_agent())  # Restart the agent in the background
+    return response
+
 async def interruptible_sleep(duration):
     """
     Custom sleep that checks for shutdown signal and interrupts if necessary.
@@ -79,56 +143,6 @@ async def interruptible_sleep(duration):
         if not running:
             break  # Stop sleeping if shutdown signal received
         await asyncio.sleep(step)
-
-async def handle_repo_snapshots(params, websocket):
-    """
-    Handle 'repo_snapshots' message type with restic and send results to the server.
-    """
-    logger.info(f"Received task to list snapshots for repo: {params['repo']}")
-
-    password = params.get('password')
-    command = ['./restic', '-r', params['repo'], 'snapshots', '--json']
-
-    try:
-        # Start the command using subprocess and provide the password via stdin
-        result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
-
-        if result.returncode != 0:
-            logger.error(f"Command failed with return code {result.returncode}: {result.stderr}")
-            return
-
-        output = result.stdout
-
-        # Log the raw command output
-        logger.info(f"Command output:\n{output}")
-
-        # Use regex to find the part of the output that contains valid JSON
-        json_start = re.search(r'(\[|\{)', output)
-        if json_start:
-            json_data = output[json_start.start():]  # Extract JSON part of the output
-            snapshots = json.loads(json_data)  # Parse the JSON output
-            logger.info(f"Parsed snapshots: {snapshots}")
-
-            # Create a message to send to the server
-            message_to_server = {
-                "type": "repo_snapshots",
-                # "systemUuid": system_uuid,  # Send system UUID; this is will be resolved by the server WS
-                "repo_path": params['repo'],
-                "snapshots": snapshots,
-            }
-
-            # Send the message over WebSocket
-            await websocket.send(json.dumps(message_to_server))
-
-        else:
-            logger.error("No JSON found in the command output.")
-
-    except subprocess.TimeoutExpired:
-        logger.error("Timeout waiting for password prompt.")
-    except json.JSONDecodeError:
-        logger.error("Failed to decode JSON output from restic.")
-    except Exception as e:
-        logger.error(f"Failed to execute command: {e}")
 
 async def consume_messages(system_uuid, connection, websocket):
     """
@@ -143,7 +157,12 @@ async def consume_messages(system_uuid, connection, websocket):
 
         # Dispatch table for handling message types
         dispatch_table = {
-            "repo_snapshots": handle_repo_snapshots,
+            "init_local_repo": handle_init_local_repo,
+            "get_local_repo_snapshots": handle_get_local_repo_snapshots,
+            "do_local_repo_backup": handle_do_local_repo_backup,
+            "do_local_repo_restore": handle_do_local_repo_restore,
+            "do_s3_repo_backup": handle_do_s3_repo_backup,
+            "do_s3_repo_restore": handle_do_s3_repo_restore,
         }
 
         async for message in queue:
@@ -151,12 +170,21 @@ async def consume_messages(system_uuid, connection, websocket):
                 async with message.process():
                     message_data = json.loads(message.body.decode())
                     message_type = message_data.get("type")
-                    handler = dispatch_table.get(message_type)
 
-                    if handler:
-                        await handler(message_data, websocket)  # Pass websocket instance
+                    if message_type.startswith("schedule_"):
+                        # Write to schedule ledger
+                        scheduler = ScheduleManager()
+                        await scheduler.handle_scheduled_task(message_data, websocket)
+                        command_history = message_data.get('command_history', True)
+                        if command_history:
+                            await save_scheduled_task(message_data)
                     else:
-                        logger.warning(f"Unknown message type: {message_type}")
+                        # Regular message handling
+                        handler = dispatch_table.get(message_type)
+                        if handler:
+                            await handler(message_data, websocket)  # Pass websocket instance
+                        else:
+                            logger.warning(f"Unknown message type: {message_type}")
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
 
@@ -173,11 +201,12 @@ async def agent():
         logger.error("Authentication routine failed!! Exiting...") # Failed to obtain JWT token
         return
     
-    bhive_uri = f"ws://localhost:5000/ws/{system_uuid}?token={token}"  # Include the token in the URI
+    # This passes the ORG along with system_uuid and token to the server via the WebSocket URL
+    bhive_uri = f"ws://{SRVR_IP}:5000/ws/{system_uuid}?token={token}&org={config.get('ORG')}"
 
     retry_attempts = 0
     backoff_factor = 2
-    max_backoff_time = 60  # Cap the backoff time to 60 seconds
+    max_backoff_time = 60  # Cap the backoff time to 60 seconds (for testing)
 
     rabbit_connection = None  # Initialize rabbit_connection here
 
@@ -188,7 +217,7 @@ async def agent():
                 logger.info("Connected to WebSocket server.")
 
                 try:
-                    rabbit_connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
+                    rabbit_connection = await aio_pika.connect_robust(f"amqp://guest:guest@{SRVR_IP}/")
                     consumer_task = asyncio.create_task(consume_messages(system_uuid, rabbit_connection, websocket))  # Pass websocket here
 
                     retry_attempts = 0  # Reset retry attempts after a successful connection
@@ -199,7 +228,7 @@ async def agent():
                         # Example: await websocket.send("Some data")
                         # Or some form of inbound message handling
 
-                        if not websocket.open:
+                        if websocket.state != websockets.protocol.State.OPEN:
                             logger.warning("WebSocket connection closed.")
                             break;
                         
@@ -232,9 +261,13 @@ async def agent():
     if not running:
         logger.info("Graceful shutdown target reached...")
 
-# Call to start agent
-def run_agent():
-    asyncio.run(agent())
+async def run_uvicorn():
+    config = uvicorn.Config(app, host="127.0.0.1", port=8080, reload=True)
+    server = uvicorn.Server(config)
+    await server.serve()
+
+async def main():
+    await asyncio.gather(agent(), run_uvicorn())
 
 if __name__ == "__main__":
-    run_agent()
+    asyncio.run(main())

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/styles.css">
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>Backup and Recovery Dashboard</h1>
+
+    <h2>Local Repository Operations</h2>
+    <button onclick="performLocalRepoBackup()">Perform Local Backup</button>
+    <button onclick="listLocalRepoSnapshots()">List Local Snapshots</button>
+    <button onclick="restoreLocalRepoSnapshot()">Restore Local Snapshot</button>
+
+    <h2>S3 Repository Operations</h2>
+    <button onclick="performS3RepoBackup()">Perform S3 Backup</button>
+
+    <a href="/">Go back to Home</a>
+
+    <script>
+        async function performLocalRepoBackup() {
+            const params = {
+                repo_path: 'your_repo_path', // Update with actual path
+                password: 'your_password',    // Update with actual password
+                paths: ['path1', 'path2'],    // Specify paths to back up
+                exclude: ['exclude_path'],     // Specify paths to exclude if any
+                custom_options: []             // Any additional options
+            };
+            const response = await fetch('/do_local_repo_backup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            const result = await response.json();
+            console.log(result);
+        }
+
+        async function listLocalRepoSnapshots() {
+            const params = {
+                repo_path: 'your_repo_path',  // Update with actual path
+                password: 'your_password'      // Update with actual password
+            };
+            const response = await fetch('/get_local_repo_snapshots', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            const result = await response.json();
+            console.log(result);
+        }
+
+        async function restoreLocalRepoSnapshot() {
+            const params = {
+                repo_path: 'your_repo_path',      // Update with actual path
+                password: 'your_password',         // Update with actual password
+                snapshot_id: 'snapshot_id',        // Specify snapshot ID
+                target_path: 'restore_target_path' // Specify restore target path
+            };
+            const response = await fetch('/do_local_repo_restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            const result = await response.json();
+            console.log(result);
+        }
+
+        async function performS3RepoBackup() {
+            const params = {
+                bucket_name: 'your_bucket_name', // Specify S3 bucket
+                aws_access_key_id: 'your_access_key', // AWS Access Key
+                aws_secret_access_key: 'your_secret_key', // AWS Secret Key
+                region: 'your_region', // Specify region
+                password: 'your_password', // Specify Restic password
+                paths: ['path1', 'path2'], // Specify paths to back up
+                exclude: ['exclude_path'], // Specify paths to exclude if any
+                custom_options: [] // Any additional options
+            };
+            const response = await fetch('/do_s3_repo_backup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            const result = await response.json();
+            console.log(result);
+        }
+    </script>
+</body>
+</html>

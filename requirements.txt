@@ -6,3 +6,10 @@ websockets
 aio-pika
 pyjwt
 requests
+boto3
+cryptography
+aiosqlite
+commentjson
+apscheduler
+sqlalchemy
+pyinstaller

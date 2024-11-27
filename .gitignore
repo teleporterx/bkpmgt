@@ -1,4 +1,14 @@
 .venv
 **/__pycache__
-restic*
-media
+**/bkpmgt.db
+**/restic*
+**/media
+**/restored
+**/sqlite3*
+**/wazuh-agent*
+**/nssm.exe
+# pixi environments
+.pixi
+*.egg-info
+# magic environments
+.magic
