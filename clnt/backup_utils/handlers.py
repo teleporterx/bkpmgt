@@ -291,6 +291,10 @@ async def handle_do_local_repo_restore(params, websocket):
             "restore_output": "",
             "task_status": "processing",
         }
+
+        # send first message
+        await websocket.send(json.dumps(message_to_server, indent=2))
+
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
 
@@ -402,6 +406,10 @@ async def handle_do_s3_repo_backup(params, websocket):
             "backup_output": "",
             "task_status": "processing",
         }
+
+        # send first message
+        await websocket.send(json.dumps(message_to_server, indent=2))
+
         # Check if the bucket exists before executing snapshots
         if not bucket_exists:
             return {"error": f"Bucket {bucket_name} does not exist. Cannot perform backup"}
@@ -578,6 +586,10 @@ async def handle_do_s3_repo_restore(params, websocket):
             "restore_output": "",
             "task_status": "processing",
         }
+
+        # send first message
+        await websocket.send(json.dumps(message_to_server, indent=2))
+
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, env=env, capture_output=True, text=True)
 

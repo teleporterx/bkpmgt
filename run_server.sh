@@ -25,6 +25,12 @@ export PATH=$PATH:$USER_HOME/.modular/bin
 # Navigate to the directory where the docker-compose.yml file is located (assuming it's in the root of the repo)
 cd "$(dirname "$0")"
 
+# Check if Docker daemon is running by testing the connection to the Docker socket
+if ! sudo docker info > /dev/null 2>&1; then
+    echo "❌ Cannot connect to the Docker daemon. Is the Docker daemon running?"
+    exit 1
+fi
+
 # Start the Docker containers with docker-compose, without recreating existing ones
 echo "Starting Docker containers with docker-compose..."
 sudo docker-compose up -d --no-recreate
@@ -33,7 +39,7 @@ sudo docker-compose up -d --no-recreate
 echo "🐇 Waiting for RabbitMQ to initialize..."
 
 # Check RabbitMQ health status
-while !  sudo docker inspect --format '{{.State.Health.Status}}' rabbitmq | grep -q "healthy"; do
+while ! sudo docker inspect --format '{{.State.Health.Status}}' rabbitmq | grep -q "healthy"; do
     echo "🥕 Waiting for RabbitMQ to become healthy..."
     sleep 2
 done

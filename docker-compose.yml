@@ -21,3 +21,7 @@ services:
     ports:
       - "27017:27017" # MongoDB default port
     restart: unless-stopped
+    volumes:
+      - mongoose_data:/data/db   # Persist MongoDB data
+volumes:
+  mongoose_data: # Declare a named volume for MongoDB data persistence

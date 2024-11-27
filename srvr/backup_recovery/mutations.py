@@ -282,7 +282,8 @@ class BackupMutations:
                 region, 
                 bucket_name, 
                 password, 
-                aws_session_token, 
+                aws_session_token,
+                "", 
                 "snapshots"
             )
             
