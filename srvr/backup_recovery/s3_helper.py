@@ -5,7 +5,7 @@ import logging
 import subprocess
 import os
 import json
-from comms import DataHandler # imports the DataHandler class from the main script
+from srvr.comms import DataHandler # imports the DataHandler class from the main script
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

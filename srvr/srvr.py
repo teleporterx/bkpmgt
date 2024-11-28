@@ -4,9 +4,9 @@ from strawberry.fastapi import GraphQLRouter
 import strawberry
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import List
-from auth import auth_router, verify_access_token
-from backup_recovery import BackupMutations, BackupQueries
-from comms import manager
+from srvr.auth import auth_router, verify_access_token
+from srvr.backup_recovery import BackupMutations, BackupQueries
+from srvr.comms import manager
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

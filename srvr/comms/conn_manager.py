@@ -4,7 +4,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from motor.motor_asyncio import AsyncIOMotorClient
 import json
 import aio_pika
-from backup_recovery.handlers import BackupHandlers # avoid the circular dependency during module initialization by moving this inside the DataHandler Class
+from srvr.backup_recovery.handlers import BackupHandlers # avoid the circular dependency during module initialization by moving this inside the DataHandler Class
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

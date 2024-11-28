@@ -2,12 +2,12 @@
 import strawberry
 import json
 import aio_pika
-from comms import manager # imports the manager object from the main script
-from backup_recovery.s3_helper import s3_restic_helper
+from srvr.comms import manager # imports the manager object from the main script
+from srvr.backup_recovery.s3_helper import s3_restic_helper
 import logging
 from typing import List, Optional
 from datetime import datetime, timezone
-from backup_recovery.mut_validations import *
+from srvr.backup_recovery.mut_validations import *
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

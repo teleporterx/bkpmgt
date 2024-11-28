@@ -3,7 +3,8 @@ name = "bkpmgt"
 version = "0.1.0"
 description = "Backup Management Backend"
 authors = ["octocroc <crctpus@gmail.com>"]
-readme = "README.md"
+package-mode = false  # Disable package mode for Poetry (used only for dependency management)
+# readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.14"
@@ -21,7 +22,6 @@ aiosqlite = "^0.20.0"
 commentjson = "^0.9.0"
 apscheduler = "^3.10.4"
 sqlalchemy = "^2.0.36"
-
 
 [build-system]
 requires = ["poetry-core"]

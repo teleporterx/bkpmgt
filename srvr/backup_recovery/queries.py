@@ -3,7 +3,7 @@ import strawberry
 import json
 import aio_pika
 from typing import List, Optional
-from comms import manager # imports the manager object from the main script
+from srvr.comms import manager # imports the manager object from the main script
 
 from .mongo_setup import (
     initialized_local_repos_collection,
