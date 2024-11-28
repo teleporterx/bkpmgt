@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
 
-from .mongo_setup import (
+from srvr.backup_recovery.mongo_setup import (
     initialized_local_repos_collection,
     local_repo_snapshots_collection,
     local_repo_backups_collection,

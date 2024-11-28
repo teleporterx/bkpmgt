@@ -1,7 +1,11 @@
 # backup_recovery/mongo_setup.py
+import os
 from motor.motor_asyncio import AsyncIOMotorClient
 
-MONGO_DETAILS = "mongodb://localhost:27017"
+# Get MongoDB host from environment variable, default to 'localhost' if not set
+mongo_host = os.getenv('MONGO_HOST', 'localhost')
+
+MONGO_DETAILS = f"mongodb://{mongo_host}:27017"
 client = AsyncIOMotorClient(MONGO_DETAILS)
 db = client["bkpmgt_db"]
 status_collection = db["client_status"]

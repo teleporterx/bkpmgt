@@ -1,0 +1,41 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    hostname: rmq
+    ports:
+      - "15672:15672"  # RabbitMQ management web UI
+      - "5672:5672"    # RabbitMQ AMQP protocol
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+      timeout: 10s
+
+  mongoose:
+    image: mongo:latest
+    container_name: mongoose
+    ports:
+      - "27017:27017"  # MongoDB default port
+    restart: unless-stopped
+    volumes:
+      - mongoose_data:/data/db  # Persist MongoDB data
+
+  bkpmgt_srvr:
+    image: teleporterx/bkpmgt_srvr
+    container_name: bkpmgt_srvr
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  # Waits for rabbitmq to be healthy
+    ports:
+      - "5000:5000"  # Expose Uvicorn server
+    restart: unless-stopped
+    environment:
+      - VIRTUAL_ENV=/app/.venv
+      - RABBITMQ_HOST=rabbitmq
+      - MONGO_HOST=mongoose
+
+volumes:
+  mongoose_data:

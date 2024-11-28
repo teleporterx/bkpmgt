@@ -104,4 +104,8 @@ The following packages need to be present in the specified directories for compi
 ## Packaging flow
 Restic binary bundled with client → Client binary compiled → Wazuh binary bundled with `package` → nssm binary bundled with `package` (Windows only!) → Installer binary compiled to result in final `package`
 
----
+# Testing & Production Builds (Server)
+- To directly run the server along with its container dependencies, use the following command:
+```bash
+sudo docker-compose -f docker-compose.prod.yml up -d
+```

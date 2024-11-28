@@ -22,6 +22,10 @@ RUN python -m venv .venv && \
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
+# Set default values for RabbitMQ and MongoDB host (this can be overridden in docker-compose or environment files)
+ENV RABBITMQ_HOST=rabbitmq
+ENV MONGO_HOST=mongoose
+
 # Copy the 'srvr' directory into the container
 COPY srvr /app/srvr
 

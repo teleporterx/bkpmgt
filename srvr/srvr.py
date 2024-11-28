@@ -8,15 +8,14 @@ from srvr.auth import auth_router, verify_access_token
 from srvr.backup_recovery import BackupMutations, BackupQueries
 from srvr.comms import manager
 
+# MongoDB setup
+from srvr.backup_recovery.mongo_setup import (
+    status_collection
+)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# MongoDB setup
-MONGO_DETAILS = "mongodb://localhost:27017"
-client = AsyncIOMotorClient(MONGO_DETAILS)
-db = client["bkpmgt_db"]
-status_collection = db["client_status"]
 
 # FastAPI setup
 app = FastAPI()

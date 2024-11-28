@@ -1,11 +1,8 @@
 # backup_recovery/queries.py
 import strawberry
-import json
-import aio_pika
 from typing import List, Optional
-from srvr.comms import manager # imports the manager object from the main script
 
-from .mongo_setup import (
+from srvr.backup_recovery.mongo_setup import (
     initialized_local_repos_collection,
     initialized_s3_repos_collection,
 )

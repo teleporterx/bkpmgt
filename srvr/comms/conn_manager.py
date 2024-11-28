@@ -1,20 +1,19 @@
 # comms/conn_manager.py
+import os
 import logging
 from fastapi import WebSocket, WebSocketDisconnect
-from motor.motor_asyncio import AsyncIOMotorClient
 import json
 import aio_pika
 from srvr.backup_recovery.handlers import BackupHandlers # avoid the circular dependency during module initialization by moving this inside the DataHandler Class
 
+# MongoDB setup
+from srvr.backup_recovery.mongo_setup import (
+    status_collection
+)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# MongoDB setup (only for client_status)
-MONGO_DETAILS = "mongodb://localhost:27017"
-client = AsyncIOMotorClient(MONGO_DETAILS)
-db = client["bkpmgt_db"]
-status_collection = db["client_status"]
 
 # Data Handler class
 class DataHandler:
@@ -53,7 +52,9 @@ class ConnectionManager:
 
     async def connect_to_rabbit(self):
         try:
-            self.rabbit_connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
+            # Use the environment variable RABBITMQ_HOST for RabbitMQ connection string
+            rabbitmq_host = os.getenv("RABBITMQ_HOST", "localhost")  # Default to localhost if the variable is not set
+            self.rabbit_connection = await aio_pika.connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
             self.channel = await self.rabbit_connection.channel()  # Create a channel
             self.rabbit_connected = True  # Set the flag to True
             logger.info("Connected to RabbitMQ.")
