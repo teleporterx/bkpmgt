@@ -11,6 +11,9 @@ from srvr.comms import DataHandler # imports the DataHandler class from the main
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Fetch the restic binary path from environment variables
+restic_path = os.getenv('RESTIC_PATH', './backup_recovery')
+
 async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, bucket_name, password, aws_session_token, org, func_type):
 
     if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name or not password:
@@ -79,8 +82,8 @@ async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, buc
         })
 
         commands = {
-            "init": ['./backup_recovery/restic', 'init', '--json'],
-            "snapshots": ['./backup_recovery/restic', 'snapshots', '--json'],
+            "init": [os.path.join(restic_path, 'restic'), 'init', '--json'],
+            "snapshots": [os.path.join(restic_path, 'restic'), 'snapshots', '--json'],
             # Add more func_types and their commands here
         }
 
