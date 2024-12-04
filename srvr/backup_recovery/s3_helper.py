@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Fetch the restic binary path from environment variables
-restic_path = os.getenv('RESTIC_PATH', './backup_recovery')
+restic_path = os.getenv('RESTIC_PATH', './srvr/backup_recovery')
 
 async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, bucket_name, password, aws_session_token, org, func_type):
 

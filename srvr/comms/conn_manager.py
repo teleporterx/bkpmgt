@@ -143,5 +143,8 @@ class ConnectionManager:
             await self.disconnect(system_uuid)
         except RuntimeError as e:
             logger.error(f"Runtime error for {system_uuid}: {e}")
+    
+    async def check_conn(self, system_uuid):
+        return system_uuid in manager.active_connections
 
 manager = ConnectionManager()

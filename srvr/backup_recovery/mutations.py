@@ -1,13 +1,12 @@
 # backup_recovery/mutations.py
 import strawberry
-import json
-import aio_pika
 from srvr.comms import manager # imports the manager object from the main script
 from srvr.backup_recovery.s3_helper import s3_restic_helper
 import logging
 from typing import List, Optional
 from datetime import datetime, timezone
 from srvr.backup_recovery.mut_validations import *
+from srvr.comms import rmq_manager
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,7 +32,7 @@ class BackupMutations:
         command_history: Optional[bool] = None,
     ) -> str:
         # Check if the client is connected
-        if system_uuid not in manager.active_connections:
+        if not await manager.check_conn(system_uuid):
             return "Error: Client not connected"
 
         # Create a task message for initializing the repository
@@ -46,16 +45,15 @@ class BackupMutations:
 
         # no scheduling stuff as it's a one-time configuration task, and scheduling it doesn’t add much value.
 
-        # Get the client's queue
-        queue = manager.queues.get(system_uuid)
-        if not queue:
-            return "Error: Queue not found for the client"
-
-        # Publish the task to the client's queue
-        await manager.channel.default_exchange.publish(
-            aio_pika.Message(body=json.dumps(task_message).encode()),
-            routing_key=queue.name  # Use the name of the queue as the routing key
-        )
+        try:
+            # Get the client's queue
+            queue = await rmq_manager.get_q(system_uuid)
+        
+            # Publish the task to the client's queue
+            await rmq_manager.pub_msg(task_message, queue)
+        
+        except ValueError as e:
+            print(f"Error: {e}")
 
         return f"Task allocated to initialize local repo: {repo_path}"
     
@@ -74,7 +72,7 @@ class BackupMutations:
     ) -> str:
         
         # Check if the client is connected
-        if system_uuid not in manager.active_connections:
+        if not await manager.check_conn(system_uuid):
             return "Error: Client not connected"
 
         task_map = { # if scheduler is specified
@@ -131,16 +129,15 @@ class BackupMutations:
             except KeyError as e:
                 return f"Error: Invalid scheduler {e}"
 
-        # Get the client's queue
-        queue = manager.queues.get(system_uuid)
-        if not queue:
-            return "Error: Queue not found for the client"
-
-        # Publish the task to the client's queue
-        await manager.channel.default_exchange.publish(
-            aio_pika.Message(body=json.dumps(task_message).encode()),
-            routing_key=queue.name  # Use the name of the queue as the routing key
-        )
+        try:
+            # Get the client's queue
+            queue = await rmq_manager.get_q(system_uuid)
+        
+            # Publish the task to the client's queue
+            await rmq_manager.pub_msg(task_message, queue)
+        
+        except ValueError as e:
+            print(f"Error: {e}")
 
         return f"Task allocated to retrieve snapshots for local repo: {repo_path}"
 
@@ -157,7 +154,7 @@ class BackupMutations:
         custom_options: Optional[List[str]] = None,
     ) -> str:
         # Check if the client is connected
-        if system_uuid not in manager.active_connections:
+        if not await manager.check_conn(system_uuid):
             return "Error: Client not connected"
         
         # Validation for input data goes here
@@ -174,16 +171,15 @@ class BackupMutations:
             "command_history": command_history,
         }
 
-        # Get the client's queue
-        queue = manager.queues.get(system_uuid)
-        if not queue:
-            return "Error: Queue not found for the client"
-
-        # Publish the task to the client's queue
-        await manager.channel.default_exchange.publish(
-            aio_pika.Message(body=json.dumps(task_message).encode()),
-            routing_key=queue.name  # Use the name of the queue as the routing key
-        )
+        try:
+            # Get the client's queue
+            queue = await rmq_manager.get_q(system_uuid)
+        
+            # Publish the task to the client's queue
+            await rmq_manager.pub_msg(task_message, queue)
+        
+        except ValueError as e:
+            print(f"Error: {e}")
 
         return f"Task allocated to backup to local repo: {repo_path}"
     
@@ -201,7 +197,7 @@ class BackupMutations:
         custom_options: Optional[List[str]] = None,
     ) -> str:
         # Check if the client is connected
-        if system_uuid not in manager.active_connections:
+        if not await manager.check_conn(system_uuid):
             return "Error: Client not connected"
         
         # Create a task message for restore
@@ -217,16 +213,15 @@ class BackupMutations:
             "command_history": command_history,
         }
 
-        # Get the client's queue
-        queue = manager.queues.get(system_uuid)
-        if not queue:
-            return "Error: Queue not found for the client"
-
-        # Publish the task to the client's queue
-        await manager.channel.default_exchange.publish(
-            aio_pika.Message(body=json.dumps(task_message).encode()),
-            routing_key=queue.name  # Use the name of the queue as the routing key
-        )
+        try:
+            # Get the client's queue
+            queue = await rmq_manager.get_q(system_uuid)
+        
+            # Publish the task to the client's queue
+            await rmq_manager.pub_msg(task_message, queue)
+        
+        except ValueError as e:
+            print(f"Error: {e}")
 
         return f"Task allocated to restore from local repo: {repo_path}"
 
@@ -314,7 +309,7 @@ class BackupMutations:
         aws_session_token: Optional[str] = None,
     ) -> str:
         # Check if the client is connected
-        if system_uuid not in manager.active_connections:
+        if not await manager.check_conn(system_uuid):
             return "Error: Client not connected"
         
         # Validation for input data goes here
@@ -335,16 +330,15 @@ class BackupMutations:
             "command_history": command_history,
         }
 
-        # Get the client's queue
-        queue = manager.queues.get(system_uuid)
-        if not queue:
-            return "Error: Queue not found for the client"
-
-        # Publish the task to the client's queue
-        await manager.channel.default_exchange.publish(
-            aio_pika.Message(body=json.dumps(task_message).encode()),
-            routing_key=queue.name  # Use the name of the queue as the routing key
-        )
+        try:
+            # Get the client's queue
+            queue = await rmq_manager.get_q(system_uuid)
+        
+            # Publish the task to the client's queue
+            await rmq_manager.pub_msg(task_message, queue)
+        
+        except ValueError as e:
+            print(f"Error: {e}")
 
         return f"Task allocated to backup to s3 repo: {bucket_name}"
 
@@ -366,7 +360,7 @@ class BackupMutations:
         aws_session_token: Optional[str] = None,
     ) -> str:
         # Check if the client is connected
-        if system_uuid not in manager.active_connections:
+        if not await manager.check_conn(system_uuid):
             return "Error: Client not connected"
 
         # Create a task message for restore
@@ -386,15 +380,14 @@ class BackupMutations:
             "command_history": command_history,
         }
 
-        # Get the client's queue
-        queue = manager.queues.get(system_uuid)
-        if not queue:
-            return "Error: Queue not found for the client"
+        try:
+            # Get the client's queue
+            queue = await rmq_manager.get_q(system_uuid)
 
-        # Publish the task to the client's queue
-        await manager.channel.default_exchange.publish(
-            aio_pika.Message(body=json.dumps(task_message).encode()),
-            routing_key=queue.name  # Use the name of the queue as the routing key
-        )
+            # Publish the task to the client's queue
+            await rmq_manager.pub_msg(task_message, queue)
+
+        except ValueError as e:
+            print(f"Error: {e}")
 
         return f"Task allocated to restore from s3 repo: {bucket_name}"

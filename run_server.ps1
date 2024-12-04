@@ -66,11 +66,11 @@ try {
     Check-ContainerReady -containerName "🍃 MongoDB" -port 27017
 
     # Change to the server directory
-    Set-Location -Path .\srvr\
+    # Set-Location -Path .\srvr\
 
     # Run the Uvicorn server in the same terminal session
     Write-Host "🦄 Starting Uvicorn server..."
-    uvicorn srvr:app --host 0.0.0.0 --port 5000
+    uvicorn srvr.srvr:app --host 0.0.0.0 --port 5000
 }
 finally {
     # Clean up and return to the original directory when the script ends
