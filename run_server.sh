@@ -69,8 +69,8 @@ if [ -d ".magic" ]; then
     echo "🪄 Using magic..."
     echo "🦄 Starting Uvicorn server..."
     # Instead of running `magic shell`, we use `magic run` to continue the script and run Uvicorn
-    cd ./srvr/
-    magic run uvicorn srvr:app --host 0.0.0.0 --port 5000
+    # cd ./srvr/
+    magic run uvicorn srvr.srvr:app --host 0.0.0.0 --port 5000
 else
     # .magic directory does not exist, fall back to .venv
     if [ -z "$VIRTUAL_ENV" ]; then
@@ -82,6 +82,6 @@ else
 
     # Run the Uvicorn server in the same terminal session
     echo "🦄 Starting Uvicorn server..."
-    cd ./srvr/
-    uvicorn srvr:app --host 0.0.0.0 --port 5000
+    # cd ./srvr/
+    uvicorn srvr.srvr:app --host 0.0.0.0 --port 5000
 fi
