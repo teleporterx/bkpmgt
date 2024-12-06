@@ -8,8 +8,31 @@ from srvr.backup_recovery.mongo_setup import (
     local_repo_snapshots_collection,
     s3_repo_snapshots_collection,
     local_repo_backups_collection,
-    s3_repo_backups_collection
+    s3_repo_backups_collection,
+    local_repo_restores_collection,
+    s3_repo_restores_collection
 )
+
+# Define the RestoreOutput type (maps the structure of the restore_output field)
+@strawberry.type
+class RestoreOutput:
+    message_type: Optional[str]
+    total_files: Optional[int]
+    files_restored: Optional[int]
+    total_bytes: Optional[int]
+    bytes_restored: Optional[int]
+
+# Define the RestoreJob type
+@strawberry.type
+class RestoreJob:
+    task_uuid: Optional[str]
+    restore_output: Optional[RestoreOutput]
+    org: Optional[str]
+    repo_path: Optional[str]
+    response_timestamp: Optional[str]
+    system_uuid: Optional[str]
+    task_status: Optional[str]
+    s3_url: Optional[str]  # S3-specific field
 
 # Define the BackupOutput type (maps the structure of the backup_output field)
 @strawberry.type
@@ -209,9 +232,9 @@ class BackupQueries:
             collections = [s3_repo_backups_collection]
         else:
             collections = [local_repo_backups_collection, s3_repo_backups_collection]
-
+    
         backup_jobs = []
-
+    
         # Loop through the collections and fetch documents
         for collection in collections:
             filters = {}
@@ -219,11 +242,15 @@ class BackupQueries:
                 filters["systemUuid"] = system_uuid
             if org:
                 filters["org"] = org
-
+    
             # Query the collection and iterate over the documents asynchronously
             async for backup_job_doc in collection.find(filters):
-                # Map the backup_output field to the new BackupOutput type
+                # Ensure that backup_output_data is a dictionary or empty dictionary if None
                 backup_output_data = backup_job_doc.get("backup_output", {})
+                if backup_output_data is None:
+                    backup_output_data = {}
+    
+                # Map the backup_output field to the new BackupOutput type
                 backup_output = BackupOutput(
                     message_type=backup_output_data.get('message_type'),
                     files_new=backup_output_data.get('files_new'),
@@ -241,7 +268,7 @@ class BackupQueries:
                     total_duration=backup_output_data.get('total_duration'),
                     snapshot_id=backup_output_data.get('snapshot_id')
                 )
-
+    
                 # Append the BackupJob to the result list
                 backup_jobs.append(
                     BackupJob(
@@ -255,5 +282,64 @@ class BackupQueries:
                         s3_url=backup_job_doc.get("s3_url")  # S3-specific field
                     )
                 )
-
+    
         return backup_jobs
+
+    @strawberry.field
+    async def get_restore_jobs(
+        self,
+        system_uuid: Optional[str] = None,
+        org: Optional[str] = None,
+        type: Optional[str] = None,
+    ) -> List[RestoreJob]:
+        # Determine which collections to query based on the `type`
+        if type == "local":
+            collections = [local_repo_restores_collection]
+        elif type == "s3":
+            collections = [s3_repo_restores_collection]
+        else:
+            collections = [local_repo_restores_collection, s3_repo_restores_collection]
+
+        restore_jobs = []
+
+        # Loop through the collections and fetch documents
+        for collection in collections:
+            filters = {}
+            if system_uuid:
+                filters["systemUuid"] = system_uuid
+            if org:
+                filters["org"] = org
+
+            # Query the collection and iterate over the documents asynchronously
+            async for restore_job_doc in collection.find(filters):
+                # Retrieve restore_output, it might be a string or dictionary
+                restore_output_data = restore_job_doc.get("restore_output", {})
+
+                # If restore_output is a string (empty or otherwise), set it to an empty dictionary
+                if isinstance(restore_output_data, str):
+                    restore_output_data = {}
+
+                # Map the restore_output field to the RestoreOutput type
+                restore_output = RestoreOutput(
+                    message_type=restore_output_data.get('message_type'),
+                    total_files=restore_output_data.get('total_files'),
+                    files_restored=restore_output_data.get('files_restored'),
+                    total_bytes=restore_output_data.get('total_bytes'),
+                    bytes_restored=restore_output_data.get('bytes_restored')
+                )
+
+                # Append the RestoreJob to the result list
+                restore_jobs.append(
+                    RestoreJob(
+                        task_uuid=restore_job_doc.get("task_uuid"),
+                        restore_output=restore_output,
+                        org=restore_job_doc.get("org"),
+                        repo_path=restore_job_doc.get("repo_path"),
+                        response_timestamp=str(restore_job_doc.get("response_timestamp")),
+                        system_uuid=restore_job_doc.get("systemUuid"),
+                        task_status=restore_job_doc.get("task_status"),
+                        s3_url=restore_job_doc.get("s3_url")  # S3-specific field
+                    )
+                )
+
+        return restore_jobs
