@@ -6,8 +6,41 @@ from srvr.backup_recovery.mongo_setup import (
     initialized_local_repos_collection,
     initialized_s3_repos_collection,
     local_repo_snapshots_collection,
-    s3_repo_snapshots_collection
+    s3_repo_snapshots_collection,
+    local_repo_backups_collection,
+    s3_repo_backups_collection
 )
+
+# Define the BackupOutput type (maps the structure of the backup_output field)
+@strawberry.type
+class BackupOutput:
+    message_type: Optional[str]
+    files_new: Optional[int]
+    files_changed: Optional[int]
+    files_unmodified: Optional[int]
+    dirs_new: Optional[int]
+    dirs_changed: Optional[int]
+    dirs_unmodified: Optional[int]
+    data_blobs: Optional[int]
+    tree_blobs: Optional[int]
+    data_added: Optional[int]
+    data_added_packed: Optional[int]
+    total_files_processed: Optional[int]
+    total_bytes_processed: Optional[int]
+    total_duration: Optional[float]
+    snapshot_id: Optional[str]
+
+# Define the BackupJob type
+@strawberry.type
+class BackupJob:
+    task_uuid: Optional[str]
+    backup_output: Optional[BackupOutput]
+    org: Optional[str]
+    repo_path: Optional[str]
+    response_timestamp: Optional[str]
+    system_uuid: Optional[str]
+    task_status: Optional[str]
+    s3_url: Optional[str]  # S3-specific field
 
 # Define the Summary type (mapping fields from the summary dictionary)
 @strawberry.type
@@ -33,6 +66,8 @@ class Snapshot:
     system_uuid: Optional[str]
     org: Optional[str]
     type: Optional[str]
+    repo_path: Optional[str]
+    s3_url: Optional[str]
     snapshot_id: Optional[str]
     short_id: Optional[str]
     time: Optional[str]
@@ -153,7 +188,72 @@ class BackupQueries:
                             username=snapshot.get('username'),
                             program_version=snapshot.get('program_version'),
                             short_id=snapshot.get('short_id'),
-                            summary=summary
+                            summary=summary,
+                            repo_path=snapshot_doc.get("repo_path"),  # Add repo_path
+                            s3_url=snapshot_doc.get("s3_url")  # Add s3_url
                         )
                     )
         return snapshots
+
+    @strawberry.field
+    async def get_backup_jobs(
+        self,
+        system_uuid: Optional[str] = None,
+        org: Optional[str] = None,
+        type: Optional[str] = None,
+    ) -> List[BackupJob]:
+        # Determine which collections to query based on the `type`
+        if type == "local":
+            collections = [local_repo_backups_collection]
+        elif type == "s3":
+            collections = [s3_repo_backups_collection]
+        else:
+            collections = [local_repo_backups_collection, s3_repo_backups_collection]
+
+        backup_jobs = []
+
+        # Loop through the collections and fetch documents
+        for collection in collections:
+            filters = {}
+            if system_uuid:
+                filters["systemUuid"] = system_uuid
+            if org:
+                filters["org"] = org
+
+            # Query the collection and iterate over the documents asynchronously
+            async for backup_job_doc in collection.find(filters):
+                # Map the backup_output field to the new BackupOutput type
+                backup_output_data = backup_job_doc.get("backup_output", {})
+                backup_output = BackupOutput(
+                    message_type=backup_output_data.get('message_type'),
+                    files_new=backup_output_data.get('files_new'),
+                    files_changed=backup_output_data.get('files_changed'),
+                    files_unmodified=backup_output_data.get('files_unmodified'),
+                    dirs_new=backup_output_data.get('dirs_new'),
+                    dirs_changed=backup_output_data.get('dirs_changed'),
+                    dirs_unmodified=backup_output_data.get('dirs_unmodified'),
+                    data_blobs=backup_output_data.get('data_blobs'),
+                    tree_blobs=backup_output_data.get('tree_blobs'),
+                    data_added=backup_output_data.get('data_added'),
+                    data_added_packed=backup_output_data.get('data_added_packed'),
+                    total_files_processed=backup_output_data.get('total_files_processed'),
+                    total_bytes_processed=backup_output_data.get('total_bytes_processed'),
+                    total_duration=backup_output_data.get('total_duration'),
+                    snapshot_id=backup_output_data.get('snapshot_id')
+                )
+
+                # Append the BackupJob to the result list
+                backup_jobs.append(
+                    BackupJob(
+                        task_uuid=backup_job_doc.get("task_uuid"),
+                        backup_output=backup_output,
+                        org=backup_job_doc.get("org"),
+                        repo_path=backup_job_doc.get("repo_path"),
+                        response_timestamp=str(backup_job_doc.get("response_timestamp")),
+                        system_uuid=backup_job_doc.get("systemUuid"),
+                        task_status=backup_job_doc.get("task_status"),
+                        s3_url=backup_job_doc.get("s3_url")  # S3-specific field
+                    )
+                )
+
+        return backup_jobs
