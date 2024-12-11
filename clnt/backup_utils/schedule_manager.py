@@ -1,6 +1,8 @@
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from backup_utils import handlers
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -12,29 +14,22 @@ class ScheduleManager:
             'default': SQLAlchemyJobStore(url=f"sqlite:///{db_path}")  # Store jobs in the existing SQLite DB
         })
         self.scheduler.start()
-
-        self.dispatch_table = {
-            "schedule_interval_get_local_repo_snapshots": handle_interval_timelapse_get_local_repo_snapshots,
-            "schedule_timelapse_get_local_repo_snapshots": handle_schedule_timelapse_get_local_repo_snapshots,
-        }
     
-    async def handle_scheduled_task(self, message_data, websocket):
+    async def schedule_task(self, message_data, handler, scheduling_type):
         """
-        Handles scheduled tasks (interval or timelapse).
+        Schedules a task based on the message data and directly calls the regular handler.
         """
-        message_type = message_data.get("type")
-        handler = self.dispatch_table.get(message_type)
-
-        if handler:
-            # Call the appropriate handler
-            await handler(message_data, websocket)
+        # Decide which handler to call based on the message type
+        if scheduling_type == "interval":
+            interval = message_data.get("interval")
+            # Schedule the task based on the interval
+            self.scheduler.add_job(handler, 'interval', **interval, args=[message_data])
+            logger.info(f"Scheduled some task: with interval: {interval}")
+        elif scheduling_type == "timelapse":
+            timelapse = message_data.get("timelapse")
+            # Schedule the task based on the timelapse
+            # self.scheduler.add_job(handler, 'date', run_date=timelapse, args=[message_data, websocket])
+            logger.info(f"Scheduled some task: with timelapse: {timelapse}")
         else:
-            logger.warning(f"Unknown scheduled message type: {message_type}")
-
-async def handle_interval_timelapse_get_local_repo_snapshots(params, websocket):
-    logger.info(f"get local repo snapshots is being handled")
-    pass
-
-async def handle_schedule_timelapse_get_local_repo_snapshots(params, websocket):
-    logger.info(f"get local repo snapshots is being handled")
-    pass
+            logger.error(f"No interval or timelapse found for scheduling task <some task>")
+            return

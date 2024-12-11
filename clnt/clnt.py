@@ -172,17 +172,25 @@ async def consume_messages(system_uuid, connection, websocket):
                     message_type = message_data.get("type")
 
                     if message_type.startswith("schedule_"):
-                        # Write to schedule ledger
-                        scheduler = ScheduleManager()
-                        await scheduler.handle_scheduled_task(message_data, websocket)
-                        command_history = message_data.get('command_history', True)
-                        if command_history:
-                            await save_scheduled_task(message_data)
+                        # Remove the 'schedule_' prefix and pass scheduling type directly
+                        handler_type = message_type[len("schedule_"):]
+                        handler = dispatch_table.get(handler_type)
+                        if handler:
+                            # Initialize the scheduler
+                            scheduler = ScheduleManager()
+                            scheduling_type = 'interval' if message_data.get("interval") else 'timelapse'
+                            await scheduler.schedule_task(message_data, handler, scheduling_type)
+                        
+                            command_history = message_data.get('command_history', True)
+                            if command_history:
+                                await save_scheduled_task(message_data)
+                        else:
+                            logger.warning(f"No handler found for {handler_type} in the dispatch table")
                     else:
                         # Regular message handling
                         handler = dispatch_table.get(message_type)
                         if handler:
-                            await handler(message_data, websocket)  # Pass websocket instance
+                            await handler(message_data, websocket)  # Pass websocket instance => for response
                         else:
                             logger.warning(f"Unknown message type: {message_type}")
             except Exception as e:

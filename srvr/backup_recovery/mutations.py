@@ -75,13 +75,7 @@ class BackupMutations:
         if not await manager.check_conn(system_uuid):
             return "Error: Client not connected"
 
-        task_map = { # if scheduler is specified
-            # Need input validation in later stages (this is just a proto)
-            "interval": "schedule_interval_get_local_repo_snapshots",
-            "timelapse": "schedule_timelapse_get_local_repo_snapshots",
-        }
-        # if scheduler is specified, use the corresponding task
-        task_type = task_map.get(scheduler, "get_local_repo_snapshots")
+        task_type = "schedule_get_local_repo_snapshots" if scheduler else "get_local_repo_snapshots"
         
         # Create a task message for initializing the repository
         task_message = {
@@ -124,8 +118,8 @@ class BackupMutations:
                 }) if timelapse else None
             }
             try:
-                action = scheduling_action[scheduler]
-                action() # Execute the action for the corresponding type of scheduler
+                action = scheduling_action[scheduler] # Get the appropriate lambda based on scheduler type
+                action() # Execute the lambda function to update task_message
             except KeyError as e:
                 return f"Error: Invalid scheduler {e}"
 

@@ -5,9 +5,10 @@ import re
 import os
 import boto3 # AWS SDK for Python
 import botocore # for exception handling
-from backup_utils.db_manager import save_command
+from backup_utils.db_manager import save_command, update_schtask
 from sys_utils.resource_helper import *
 import uuid
+import websockets
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -91,7 +92,7 @@ async def handle_init_local_repo(params, websocket):
         logger.error(f"Failed to initialize repository: {e}")
         return
 
-async def handle_get_local_repo_snapshots(params, websocket):
+async def handle_get_local_repo_snapshots(params, websocket=None):
     """
     Handle 'get_local_repo_snapshots' message type with restic and send results to the server.
     """
@@ -100,6 +101,7 @@ async def handle_get_local_repo_snapshots(params, websocket):
     password = params.get('password')
     repo_path = params.get('repo_path')
     command_history = params.get('command_history', True)
+    optype = params.get("type")
 
     if not password or not repo_path:
         logger.error("Password and repository path are required.")
@@ -138,8 +140,14 @@ async def handle_get_local_repo_snapshots(params, websocket):
                 "snapshots": snapshots,
             }
 
-            # Send the message over WebSocket
-            await websocket.send(json.dumps(message_to_server, indent=2))
+            if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+                # If websocket is available, send the response to the server via WebSocket
+                await websocket.send(json.dumps(message_to_server, indent=2))
+                logger.info("Response sent over WebSocket.")
+            else:
+                # WebSocket is may not be available, save the response to local database
+                await update_schtask(message_to_server)
+                logger.info("Response saved to local database due to lack of WebSocket connection.")
 
         else: # Future: create a message payload with failure output
             logger.error("No JSON found in the command output.")
@@ -151,7 +159,7 @@ async def handle_get_local_repo_snapshots(params, websocket):
     except Exception as e:
         logger.error(f"Failed to execute command: {e}")
 
-async def handle_do_local_repo_backup(params, websocket):
+async def handle_do_local_repo_backup(params, websocket=None):
 
     task_uuid = str(uuid.uuid4())  # Generate a unique task UUID for this particular backup task
 
@@ -164,6 +172,7 @@ async def handle_do_local_repo_backup(params, websocket):
     custom_options = params.get('custom_options', [])  # Any additional options
     tags = params.get('tags', [])  # Optional tags
     command_history = params.get('command_history', True)
+    optype = params.get("type")
 
     if not password or not repo_path:
         logger.error("Password and repository path are required.")
@@ -195,7 +204,12 @@ async def handle_do_local_repo_backup(params, websocket):
         }
 
         # send first message
-        await websocket.send(json.dumps(message_to_server, indent=2))
+        if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
+            await websocket.send(json.dumps(message_to_server, indent=2))
+            logger.info("Response sent over WebSocket.")
+        else:
+            await update_schtask(message_to_server)
+            logger.info("Response saved to local database due to lack of WebSocket connection (Possibly a Scheduled task)")
 
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
@@ -235,9 +249,15 @@ async def handle_do_local_repo_backup(params, websocket):
                 "task_status": "completed",
             }
 
-            # Send the second update message (for task status) over WebSocket
-            await websocket.send(json.dumps(message_to_server, indent=2))
-            logger.info(f"Backup update sent to server for repo: {repo_path}")
+            if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
+                # If websocket is available, send the response to the server via WebSocket
+                await websocket.send(json.dumps(message_to_server, indent=2))
+                logger.info("Response sent over WebSocket.")
+            else:
+                # WebSocket is may not be available, save the response to local database
+                await update_schtask(message_to_server)
+                logger.info("Response saved to local database due to lack of WebSocket connection.")
+
         else:
             logger.error("No JSON found in the command output.")
 
@@ -246,7 +266,7 @@ async def handle_do_local_repo_backup(params, websocket):
     except Exception as e:
         logger.error(f"Failed to execute command: {e}")
 
-async def handle_do_local_repo_restore(params, websocket):
+async def handle_do_local_repo_restore(params, websocket=None):
     """
     Handle 'do_local_repo_restore' message type to restore files from a local Restic repository.
     """
@@ -261,6 +281,7 @@ async def handle_do_local_repo_restore(params, websocket):
     include = params.get('include', [])  # Optional include filters
     custom_options = params.get('custom_options', [])  # Any additional options
     command_history = params.get('command_history', True)
+    optype = params.get("type")
 
     if not password or not repo_path or not snapshot_id:
         logger.error("Password, repository path, and snapshot ID are required.")
@@ -293,7 +314,12 @@ async def handle_do_local_repo_restore(params, websocket):
         }
 
         # send first message
-        await websocket.send(json.dumps(message_to_server, indent=2))
+        if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+            await websocket.send(json.dumps(message_to_server, indent=2))
+            logger.info("Response sent over WebSocket.")
+        else:
+            await update_schtask(message_to_server)
+            logger.info("Response saved to local database due to lack of WebSocket connection (Possibly a Scheduled task)")
 
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
@@ -333,9 +359,15 @@ async def handle_do_local_repo_restore(params, websocket):
                 "task_status": "completed",
             }
 
-            # Send the message over WebSocket
-            await websocket.send(json.dumps(message_to_server, indent=2))
-            logger.info(f"Restore data sent to server for repo: {repo_path}")
+            if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+                # If websocket is available, send the response to the server via WebSocket
+                await websocket.send(json.dumps(message_to_server, indent=2))
+                logger.info("Response sent over WebSocket.")
+            else:
+                # WebSocket is may not be available, save the response to local database
+                await update_schtask(message_to_server)
+                logger.info("Response saved to local database due to lack of WebSocket connection.")
+
         else:
             logger.error("No JSON found in the command output.")
 
@@ -344,7 +376,7 @@ async def handle_do_local_repo_restore(params, websocket):
     except Exception as e:
         logger.error(f"Failed to execute command: {e}")
 
-async def handle_do_s3_repo_backup(params, websocket):
+async def handle_do_s3_repo_backup(params, websocket=None):
     task_uuid = str(uuid.uuid4())  # Generate a unique task UUID for this particular restore task
     logger.info(f"Received request to perform S3 repo backup for bucket: {params['bucket_name']}")
 
@@ -359,6 +391,7 @@ async def handle_do_s3_repo_backup(params, websocket):
     tags = params.get('tags', [])  # Optional tags
     custom_options = params.get('custom_options', [])
     command_history = params.get('command_history', True)
+    optype = params.get("type")
 
     if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name:
         logger.error("AWS credentials, region, and bucket name are required.")
@@ -408,7 +441,12 @@ async def handle_do_s3_repo_backup(params, websocket):
         }
 
         # send first message
-        await websocket.send(json.dumps(message_to_server, indent=2))
+        if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+            await websocket.send(json.dumps(message_to_server, indent=2))
+            logger.info("Response sent over WebSocket.")
+        else:
+            await update_schtask(message_to_server)
+            logger.info("Response saved to local database due to lack of WebSocket connection (Possibly a Scheduled task)")
 
         # Check if the bucket exists before executing snapshots
         if not bucket_exists:
@@ -486,9 +524,15 @@ async def handle_do_s3_repo_backup(params, websocket):
                 "task_status": "completed",
             }
 
-            # Send the message over WebSocket
-            await websocket.send(json.dumps(message_to_server, indent=2))
-            logger.info(f"Backup data sent to server for repo: {restic_repo}")
+            if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+                # If websocket is available, send the response to the server via WebSocket
+                await websocket.send(json.dumps(message_to_server, indent=2))
+                logger.info("Response sent over WebSocket.")
+            else:
+                # WebSocket is may not be available, save the response to local database
+                await update_schtask(message_to_server)
+                logger.info("Response saved to local database due to lack of WebSocket connection.")
+
         else:
             logger.error("No JSON found in the command output.")
 
@@ -505,7 +549,7 @@ async def handle_do_s3_repo_backup(params, websocket):
         logger.error(f"Failed to execute operation: {e}")
         return {"error": str(e)}
 
-async def handle_do_s3_repo_restore(params, websocket):
+async def handle_do_s3_repo_restore(params, websocket=None):
     task_uuid = str(uuid.uuid4())  # Generate a unique task UUID for this particular restore task
 
     logger.info(f"Received request to perform S3 repo restore for bucket: {params['bucket_name']}")
@@ -522,6 +566,7 @@ async def handle_do_s3_repo_restore(params, websocket):
     include = params.get('include', [])
     custom_options = params.get('custom_options', [])
     command_history = params.get('command_history', True)
+    optype = params.get("type")
 
     if not aws_access_key_id or not aws_secret_access_key or not region or not bucket_name:
         logger.error("AWS credentials, region, and bucket name are required.")
@@ -588,7 +633,12 @@ async def handle_do_s3_repo_restore(params, websocket):
         }
 
         # send first message
-        await websocket.send(json.dumps(message_to_server, indent=2))
+        if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+            await websocket.send(json.dumps(message_to_server, indent=2))
+            logger.info("Response sent over WebSocket.")
+        else:
+            await update_schtask(message_to_server)
+            logger.info("Response saved to local database due to lack of WebSocket connection (Possibly a Scheduled task)")
 
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, env=env, capture_output=True, text=True)
@@ -628,9 +678,15 @@ async def handle_do_s3_repo_restore(params, websocket):
                 "task_status": "completed",
             }
 
-            # Send the message over WebSocket
-            await websocket.send(json.dumps(message_to_server, indent=2))
-            logger.info(f"Restore data sent to server for repo: {restic_repo}")
+            if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+                # If websocket is available, send the response to the server via WebSocket
+                await websocket.send(json.dumps(message_to_server, indent=2))
+                logger.info("Response sent over WebSocket.")
+            else:
+                # WebSocket is may not be available, save the response to local database
+                await update_schtask(message_to_server)
+                logger.info("Response saved to local database due to lack of WebSocket connection.")
+
         else:
             logger.error("No JSON found in the command output.")
 

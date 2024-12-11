@@ -105,6 +105,47 @@ async def initialize_database():
                 )
             ''')
 
+            # Create separate tables for each response type
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS response_local_repo_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS response_s3_repo_restore (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS response_local_repo_backup (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS response_local_repo_restore (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS response_s3_repo_backup (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    response TEXT NOT NULL,
+                    response_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # Create the schedule ledger table
             await cursor.execute('''
                 CREATE TABLE IF NOT EXISTS schedule_ledger (
@@ -184,6 +225,32 @@ async def save_scheduled_task(params):
             await connection.commit()
     except Exception as e:
         logger.error(f"Failed to save scheduled task: {e}")
+
+async def update_schtask(response):
+    response_timestamp = datetime.now(timezone.utc).isoformat()  # Get current timestamp in UTC
+    task_type = response.get("type")
+    table_name = task_type.replace(" ", "_").lower()  # Normalize table name
+
+    try:
+        async with aiosqlite.connect(DATABASE_FILE) as connection:
+            cursor = await connection.cursor()
+
+            # Check if the command already exists using the response
+            await cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE response = ?', (normalize_params(response),))
+            count = await cursor.fetchone()
+            count = count[0] if count else 0
+
+            if count == 0:  # Only insert if no existing record
+                await cursor.execute(f'''
+                    INSERT INTO {table_name} (response, response_timestamp)
+                    VALUES (?, ?)
+                ''', (normalize_params(response), response_timestamp))
+
+                await connection.commit()
+            else:
+                logger.info(f"response already exists in {table_name}, skipping insert.")
+    except Exception as e:
+        logger.error(f"Failed to save response to database: {e}")
 
 # Initialize the database when the module is loaded
 asyncio.run(initialize_database())
