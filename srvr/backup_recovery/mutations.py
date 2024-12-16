@@ -253,6 +253,7 @@ class BackupMutations:
     @strawberry.mutation
     async def get_s3_repo_snapshots(
         self,
+        org: str,
         aws_access_key_id: str,
         aws_secret_access_key: str,
         region: str,
@@ -269,7 +270,7 @@ class BackupMutations:
                 bucket_name, 
                 password, 
                 aws_session_token,
-                "", 
+                org, 
                 "snapshots"
             )
             

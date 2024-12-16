@@ -1,19 +1,17 @@
 # Save the current directory so we can return to it later
 $originalDirectory = Get-Location
 
+# Define a cleanup function
+$cleanup = {
+    Write-Host "Stopping and removing Docker containers..."
+    docker-compose down
+    Write-Host "Cleanup complete!..."
+    # Return to the original directory
+    Set-Location -Path $using:originalDirectory
+}
+
 try {
-    # Ensure the cleanup function runs on script exit (on SIGTERM/SIGKILL or normal exit)
-    $cleanup = {
-        Write-Host "Stopping and removing Docker containers..."
-        docker-compose down
-
-        # Return to the original directory
-        Set-Location -Path $originalDirectory
-    }
-    # Register cleanup function to be called on script exit
-    $null = Register-EngineEvent -SourceIdentifier "PowerShell.Exiting" -Action $cleanup
-
-    # Check if the virtual environment is already activated
+    # Ensure the virtual environment is active
     if (-not $env:VIRTUAL_ENV) {
         # Virtual environment is not active, so activate it
         .\.venv\Scripts\Activate.ps1  # Activate the virtual environment
@@ -65,14 +63,14 @@ try {
     # Check if MongoDB is ready
     Check-ContainerReady -containerName "🍃 MongoDB" -port 27017
 
-    # Change to the server directory
-    # Set-Location -Path .\srvr\
-
     # Run the Uvicorn server in the same terminal session
     Write-Host "🦄 Starting Uvicorn server..."
     uvicorn srvr.srvr:app --host 0.0.0.0 --port 5000
-}
-finally {
-    # Clean up and return to the original directory when the script ends
+
+} finally {
+    # Manually call cleanup function
+    Write-Host "Running cleanup..."
+    $cleanup.Invoke()
+    # Always return to the original directory
     Set-Location -Path $originalDirectory
 }

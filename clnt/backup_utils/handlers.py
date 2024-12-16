@@ -141,7 +141,7 @@ async def handle_get_local_repo_snapshots(params, websocket=None):
                 "snapshots": snapshots,
             }
 
-            if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+            if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
                 # If websocket is available, send the response to the server via WebSocket
                 await websocket.send(json.dumps(message_to_server, indent=2))
                 logger.info("Response sent over WebSocket.")
@@ -214,7 +214,7 @@ async def handle_do_local_repo_backup(params, websocket=None):
 
         # Start the command using subprocess and provide the password via stdin
         result = subprocess.run(command, input=f"{password}\n", text=True, capture_output=True)
-
+        # try except to send failed message
         if result.returncode != 0:
             logger.error(f"Command failed with return code {result.returncode}: {result.stderr}")
             return
@@ -308,14 +308,14 @@ async def handle_do_local_repo_restore(params, websocket=None):
         # task status
         message_to_server = {
             "task_uuid": task_uuid, # non-persistent, move out to local DB later
-            "type": "response_local_repo_backup",  # Define the message type for backup
+            "type": "response_local_repo_restore",  # Define the message type for restore
             "repo_path": repo_path,
             "restore_output": "",
             "task_status": "processing",
         }
 
         # send first message
-        if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+        if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
             await websocket.send(json.dumps(message_to_server, indent=2))
             logger.info("Response sent over WebSocket.")
         else:
@@ -360,7 +360,7 @@ async def handle_do_local_repo_restore(params, websocket=None):
                 "task_status": "completed",
             }
 
-            if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+            if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
                 # If websocket is available, send the response to the server via WebSocket
                 await websocket.send(json.dumps(message_to_server, indent=2))
                 logger.info("Response sent over WebSocket.")
@@ -442,7 +442,7 @@ async def handle_do_s3_repo_backup(params, websocket=None):
         }
 
         # send first message
-        if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+        if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
             await websocket.send(json.dumps(message_to_server, indent=2))
             logger.info("Response sent over WebSocket.")
         else:
@@ -525,7 +525,7 @@ async def handle_do_s3_repo_backup(params, websocket=None):
                 "task_status": "completed",
             }
 
-            if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+            if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
                 # If websocket is available, send the response to the server via WebSocket
                 await websocket.send(json.dumps(message_to_server, indent=2))
                 logger.info("Response sent over WebSocket.")
@@ -634,7 +634,7 @@ async def handle_do_s3_repo_restore(params, websocket=None):
         }
 
         # send first message
-        if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+        if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
             await websocket.send(json.dumps(message_to_server, indent=2))
             logger.info("Response sent over WebSocket.")
         else:
@@ -679,7 +679,7 @@ async def handle_do_s3_repo_restore(params, websocket=None):
                 "task_status": "completed",
             }
 
-            if not optype.startswith("schedule_") and websocket.state != websockets.protocol.State.OPEN:
+            if not optype.startswith("schedule_") and websocket.state == websockets.protocol.State.OPEN:
                 # If websocket is available, send the response to the server via WebSocket
                 await websocket.send(json.dumps(message_to_server, indent=2))
                 logger.info("Response sent over WebSocket.")
