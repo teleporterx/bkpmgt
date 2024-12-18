@@ -76,7 +76,7 @@ uvicorn srvr:app --host 0.0.0.0 --port 5000
 ```
 
 ```bash
-.\run_server.sh # Linux
+./run_server.sh # Linux
 ```
 # Compiling Installer Binaries
 - Binaries can be created for this project using the `pyinstaller` package if you'd like to manually comple specific binaries
@@ -100,7 +100,11 @@ The following packages need to be present in the specified directories for compi
 # cleanup old build
 ./installer/build_scripts/linux_cleanup.sh
 ```
-
+- If you face issues, you are possibly missing some development related packages. Installing these will usually fix all issues
+```bash
+# For Debian based distros
+sudo apt install python3-dev binutils
+```
 ## Packaging flow
 Restic binary bundled with client → Client binary compiled → Wazuh binary bundled with `package` → nssm binary bundled with `package` (Windows only!) → Installer binary compiled to result in final `package`
 
@@ -108,4 +112,12 @@ Restic binary bundled with client → Client binary compiled → Wazuh binary bu
 - To directly run the server along with its container dependencies, use the following command:
 ```bash
 sudo docker-compose -f docker-compose.prod.yml up -d
+```
+- View ASGI server activity using the followng command:        
+```bash
+sudo docker logs bkpmgt_srvr
+```
+- Cleanup
+```bash
+sudo docker-compose -f docker-compose.prod.yml down
 ```
