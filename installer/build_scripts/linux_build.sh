@@ -9,15 +9,21 @@ echo "Root directory: $rootDir"
 clntDir="$rootDir/clnt"
 echo "Client directory: $clntDir"
 
-# Navigate to the clnt directory
-cd "$clntDir" || { echo "Failed to navigate to $clntDir"; exit 1; }
+# Activate the virtual environment
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Activating virtual environment..."
+    . "$rootDir/.venv/bin/activate" # Ensure we activate the virtual environment for sh
+fi
 
-# Ensure PyInstaller is available
-if ! command -v pyinstaller &>/dev/null; then
-    echo "Warning: PyInstaller not found. Ensure you're in the virtual environment and PyInstaller is installed."
-    cd "$scriptDir"  # Reset back to the original script directory
+# Ensure PyInstaller is available from the virtual environment
+PYINSTALLER_PATH="$rootDir/.venv/bin/pyinstaller"
+if [ ! -f "$PYINSTALLER_PATH" ]; then
+    echo "Warning: PyInstaller not found at $PYINSTALLER_PATH. Ensure you're in the virtual environment and PyInstaller is installed."
     exit 1
 fi
+
+# Navigate to the clnt directory
+cd "$clntDir" || { echo "Failed to navigate to $clntDir"; exit 1; }
 
 # Define the paths to the directories (relative to the current working directory)
 resticElf="$clntDir/restic"
@@ -37,7 +43,7 @@ fi
 
 # If all checks pass, run pyinstaller to bundle the client
 echo "Bundling client..."
-pyinstaller --onefile --add-data "$resticElf:." --add-data "$staticDir:static" clnt.py
+$PYINSTALLER_PATH --onefile --add-data "$resticElf:." --add-data "$staticDir:static" clnt.py
 
 # Navigate to the installer directory
 installerDir="$rootDir/installer"
@@ -60,4 +66,4 @@ fi
 
 # Run pyinstaller again to bundle the installer script
 echo "Bundling installer..."
-pyinstaller --onefile --add-data "$clntElf:." --add-data "$wazuhDeb:." deepsec_installer.py
+$PYINSTALLER_PATH --onefile --add-data "$clntElf:." --add-data "$wazuhDeb:." deepsec_installer.py
