@@ -1,12 +1,14 @@
 import logging
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
+from fastapi import FastAPI, WebSocket, Query
 from strawberry.fastapi import GraphQLRouter
 import strawberry
-from motor.motor_asyncio import AsyncIOMotorClient
 from typing import List
 from srvr.auth import auth_router, verify_access_token
 from srvr.backup_recovery import BackupMutations, BackupQueries
 from srvr.comms import manager
+from srvr.backup_recovery.disaster_recovery import DRMonitor
+import asyncio
+from pathlib import Path
 
 # MongoDB setup
 from srvr.backup_recovery.mongo_setup import (
@@ -19,15 +21,36 @@ logger = logging.getLogger(__name__)
 
 # FastAPI setup
 app = FastAPI()
+
+# Initialize the DR monitor
+# Use an absolute path for the config file
+dr_configuration = Path(__file__).parent / 'backup_recovery' / 'dr.jsonc'
+dr_monitor = DRMonitor(str(dr_configuration), manager)  # Path to your DR config file
+
+# Assign the DRMonitor's methods as the event handlers
+"""
+We are simply passing connection and disconnection events from the ConnectionManager to the DRMonitor so it can track the connection times of each agent.
+"""
+manager.on_connect = dr_monitor.handle_connect
+manager.on_disconnect = dr_monitor.handle_disconnect
+
 # REST: Token acquisition request setup & endpoint for user authentication
 app.include_router(auth_router)
+
+background_task = None
 
 @app.on_event("startup")
 async def startup_event():
     await manager.connect_to_rabbit()
+    # Start the DR monitor in the background
+    global background_task
+    background_task = asyncio.create_task(dr_monitor.monitor_disconnects())  # Run monitoring as a background task
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    if background_task:
+        background_task.cancel()  # Gracefully cancel the background task
+        logger.info("DR monitor task canceled.")
     logger.info("Shutting down server... /ws/ will be closed")
 
 # WebSocket endpoint

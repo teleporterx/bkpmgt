@@ -1,0 +1,60 @@
+{
+    "ORGS": {
+        "manipal_hospital": {   
+            "DR": {
+                "agents": {   
+                    "609d679e-e218-dc4c-8397-c6bd2062394b": {
+                        "DR_monitoring_threshold": "PT0H01M", 
+                        "enabled": true,
+                        "backup_config": {
+                            "backup_source": "local",
+                            "repo_uri": "/etc/apache2/", 
+                            "repo_credentials": {
+                                "password": "hash"
+                            },
+                            "destination": "s3:s3:us-east-1.mysticrepo"
+                        },
+                        "restore_config": {
+                            "restore_source": "S3",
+                            "repo_uri": "s3:s3:us-east-1.mysticrepo", 
+                            "repo_credentials": {
+                                "access_key_hash": "hash", 
+                                "secret_key_hash": "hash",
+                                "password": "hash"
+                            },
+                            "destination": "auto-spin-up"
+                        }
+                    }
+                }
+            }
+        },
+        "kindess_ai": {
+            "DR": {
+                "agents": {   
+                    "a3f4e91c-1d7b-4cfd-9872-d2bc728902ee": {
+                        "enabled": true,                    
+                        "DR_monitoring_threshold": "PT2H30M", 
+                        "backup_config": {
+                            "backup_source": "local",
+                            "repo_uri": "/etc/apache2/", 
+                            "repo_credentials": {
+                                "password": "hash"
+                            },
+                            "destination": "s3:s3:us-east-1.mysticrepo"
+                        },
+                        "restore_config": {
+                            "restore_source": "S3",
+                            "repo_uri": "s3:s3:us-east-1.mysticrepo", 
+                            "repo_credentials": {
+                                "access_key_hash": "hash", 
+                                "secret_key_hash": "hash",
+                                "password": "hash"
+                            },
+                            "destination": "a3f4e91c-1d7b-4cfd-9872-d2bc728902ee"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

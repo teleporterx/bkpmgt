@@ -50,6 +50,13 @@ class ConnectionManager:
         self.queues = {}
         self.rabbit_connected = False  # Flag to track RabbitMQ connection status
 
+        """
+        The DRMonitor subscribes to connection and disconnection events by setting the on_connect and on_disconnect event handlers. These handlers are the handle_connect and handle_disconnect methods in DRMonitor, which are called when agents connect or disconnect.
+        """
+        # Add placeholders for connect and disconnect events
+        self.on_connect = None
+        self.on_disconnect = None
+
     async def connect_to_rabbit(self):
         try:
             # Use the environment variable RABBITMQ_HOST for RabbitMQ connection string
@@ -104,6 +111,10 @@ class ConnectionManager:
         )
         await self.create_queue(system_uuid)  # Create a queue for this client
 
+        # Trigger on_connect event if set
+        if self.on_connect:
+            await self.on_connect(system_uuid)
+
     async def disconnect(self, system_uuid: str):
         websocket = self.active_connections.pop(system_uuid, None)
         if websocket:
@@ -128,6 +139,10 @@ class ConnectionManager:
                 #     logger.warning(f"Queue {queue.name} not deleted: it contains pending tasks.")
             else:
                 logger.warning("Queue not found for deletion.")
+
+            # Trigger on_disconnect event if set
+            if self.on_disconnect:
+                await self.on_disconnect(system_uuid)
 
     async def receive_data(self, websocket: WebSocket, system_uuid: str):
         try:
