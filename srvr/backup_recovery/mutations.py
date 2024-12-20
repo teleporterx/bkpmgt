@@ -375,7 +375,7 @@ class BackupMutations:
         if not await manager.check_conn(system_uuid):
             return "Error: Client not connected"
 
-        task_type = "schedule_do_local_repo_restore" if scheduler else "do_local_repo_restore"
+        task_type = "schedule_do_s3_repo_restore" if scheduler else "do_s3_repo_restore"
 
         # Create a task message for restore
         task_message = {
