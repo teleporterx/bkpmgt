@@ -6,7 +6,7 @@ from typing import List
 from srvr.auth import auth_router, verify_access_token
 from srvr.backup_recovery import BackupMutations, BackupQueries
 from srvr.comms import manager
-from srvr.backup_recovery.disaster_recovery import DRMonitor
+from srvr.backup_recovery.dr_mon import DRMonitor
 import asyncio
 from pathlib import Path
 
@@ -25,14 +25,7 @@ app = FastAPI()
 # Initialize the DR monitor
 # Use an absolute path for the config file
 dr_configuration = Path(__file__).parent / 'backup_recovery' / 'dr.jsonc'
-dr_monitor = DRMonitor(str(dr_configuration), manager)  # Path to your DR config file
-
-# Assign the DRMonitor's methods as the event handlers
-"""
-We are simply passing connection and disconnection events from the ConnectionManager to the DRMonitor so it can track the connection times of each agent.
-"""
-manager.on_connect = dr_monitor.handle_connect
-manager.on_disconnect = dr_monitor.handle_disconnect
+dr_monitor = DRMonitor(str(dr_configuration))  # Path to your DR config file
 
 # REST: Token acquisition request setup & endpoint for user authentication
 app.include_router(auth_router)
@@ -44,7 +37,7 @@ async def startup_event():
     await manager.connect_to_rabbit()
     # Start the DR monitor in the background
     global background_task
-    background_task = asyncio.create_task(dr_monitor.monitor_disconnects())  # Run monitoring as a background task
+    background_task = asyncio.create_task(dr_monitor.start_monitoring())  # Run monitoring as a background task
 
 @app.on_event("shutdown")
 async def shutdown_event():
