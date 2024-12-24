@@ -84,6 +84,8 @@ async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, buc
         commands = {
             "init": [os.path.join(restic_path, 'restic'), 'init', '--json'],
             "snapshots": [os.path.join(restic_path, 'restic'), 'snapshots', '--json'],
+            # "restore": [os.path.join(restic_path, 'restic'), 'restore', 'latest', '--target', '/path/to/restore', '--json']
+            "restore": [os.path.join(restic_path, 'restic'), 'snapshots', '--json'],
             # Add more func_types and their commands here
         }
 
@@ -109,6 +111,7 @@ async def s3_restic_helper(aws_access_key_id, aws_secret_access_key, region, buc
         messages = {
             "init": {"type": "response_init_s3_repo", "summary": json.loads(result.stdout)},
             "snapshots": {"type": "response_s3_repo_snapshots", "s3_url": restic_repo, "snapshots": json.loads(result.stdout)},
+            "restore": {"type": "dummy", "summary": "I worked"},
         }
 
         data_handler = DataHandler()

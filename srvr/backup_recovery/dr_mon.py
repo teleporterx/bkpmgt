@@ -4,9 +4,11 @@ import json5
 import asyncio
 from dateutil.parser import isoparse
 from datetime import datetime, timedelta
+import subprocess
+from srvr.backup_recovery.s3_helper import s3_restic_helper
 
 # MongoDB setup
-from srvr.backup_recovery.mongo_setup import status_collection
+from srvr.backup_recovery.mongo_setup import status_collection, dr_assocs_colleciton
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)  # Change to DEBUG to see debug logs
@@ -128,10 +130,37 @@ class DRMonitor:
         # For now, just log the success of the operation
         try:
             # This is where the restore logic would occur (e.g., call a backup/restore API)
-            logger.info(f"Restore initiated for agent {agent_uuid} in {org_name} using config: {restore_config}")
-
-            # Example: Assuming restore is successful
-            logger.info(f"Restore completed for agent {agent_uuid} in {org_name}")
+            if restore_config.get("destination") == "auto-spin-up":
+                logger.info("Auto-spin-up detected. Spawning a new instance...")
+                # Call spawn.sh and capture the output
+                spawn_process = subprocess.run(
+                    ["./spawn.sh"], capture_output=True, text=True, check=True
+                    )
+                spawned_uuid = spawn_process.stdout.strip()
+                logger.info(f"Spawned instance UUID: {spawned_uuid}")
+                # Associate spawned UUID with agent UUID
+                dr_assoc = {
+                    "org_name": org_name,
+                    "agent_uuid": agent_uuid,
+                    "spawned_uuid": spawned_uuid,
+                }
+                # Insert this association into the database (MongoDB)
+                dr_assocs_colleciton.insert_one(dr_assoc)
+                # Trigger restore using s3_helper
+                logger.info("Initiating restore using s3_restic_helper...")
+                restore_result = await s3_restic_helper(
+                    restore_config["aws_access_key_id"],
+                    restore_config["aws_secret_access_key"],
+                    restore_config["region"],
+                    restore_config["bucket_name"],
+                    restore_config["password"],
+                    restore_config.get("aws_session_token", ""),
+                    org_name,
+                    "restore",
+                )
+                logger.info(f"Restore initiated: {restore_result}")
+            else:
+                logger.error("Unsupported restore destination.")
         except Exception as e:
             logger.error(f"Error during restore for agent {agent_uuid} in {org_name}: {e}")
 
