@@ -21,6 +21,8 @@ class DRMonitor:
             return
         self.status_collection = status_collection
         self.monitor_task = None
+        # Dictionary to track triggered restores
+        self.triggered_restores = {}
 
     def load_config(self, config_file: str) -> dict:
         """Load disaster recovery configuration from a JSONC file using json5."""
@@ -95,9 +97,15 @@ class DRMonitor:
 
                                     if time_diff > threshold_time:
                                         logger.warning(f"Agent {agent_uuid} in {org_name} has been disconnected for too long!")
-                                        # Take necessary action (e.g., send alert or trigger recovery process)
-                                         # Call the trigger_restore function to start the restore process
-                                        await self.trigger_restore(org_name, agent_uuid, agent_config)
+
+                                        # Check if restore was triggered already
+                                        if agent_uuid not in self.triggered_restores or (current_time - self.triggered_restores[agent_uuid]).seconds > 3600:  # Reset after 1 hour
+                                            # Call the trigger_restore function to start the restore process
+                                            # Take necessary action (e.g., send alert or trigger recovery process)
+                                            # Call the trigger_restore function to start the restore process
+                                            await self.trigger_restore(org_name, agent_uuid, agent_config)
+                                            # Update the triggered restore time
+                                            self.triggered_restores[agent_uuid] = current_time
                                 except ValueError:
                                     logger.error(f"Invalid threshold format for {agent_uuid} in {org_name}: {threshold}")
                         except Exception as e:
