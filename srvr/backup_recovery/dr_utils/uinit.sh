@@ -1,13 +1,16 @@
 #!/bin/bash
 
-echo "dbg: [+] Starting uinit" >> /home/admin/auto_dbg.tmp
+# Define the IP variable
+IP="34.100.197.147"
 
-wget http://43.204.144.143:1414/clnt -O /home/admin/clnt
-echo "dbg: [+] bkpmgt clnt obtained" >> /home/admin/auto_dbg.tmp
+echo "dbg: [+] Starting uinit" >> /home/ubuntu/auto_dbg.tmp
+
+wget http://$IP/deepsec_installer -O /home/ubuntu/deepsec_installer
+echo "dbg: [+] bkpmgt deepsec_installer obtained" >> /home/ubuntu/auto_dbg.tmp
 # Create the config.jsonc file with the desired content
-cat <<EOL > /home/admin/config.jsonc
+cat <<EOL > /home/ubuntu/config.jsonc
 {
-    "SRVR_IP": "localhost",
+    "SRVR_IP": "$IP",
     "ORG": "manipal_hospitals"
 }
 EOL
@@ -17,5 +20,6 @@ if [[ -f "config.jsonc" ]]; then
 else
     echo "Failed to create config.jsonc"
 fi
-sudo chmod +x /home/admin/clnt
-sudo ./home/admin/clnt # this will connect the client to the central server
+sudo chmod +x /home/ubuntu/deepsec_installer
+sudo ./home/ubuntu/deepsec_installer 34.100.197.147 demo 34.100.197.147
+# this will connect the client to the central server

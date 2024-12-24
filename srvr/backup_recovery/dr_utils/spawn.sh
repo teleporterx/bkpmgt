@@ -1,5 +1,5 @@
 InstanceId=$(aws ec2 run-instances \
-    --image-id ami-0850beb48a8b4bb46 \
+    --image-id ami-0dee22c13ea7a9a67 \
     --count 1 \
     --instance-type t2.micro \
     --key-name c2_autoarch_keypair \
@@ -17,8 +17,8 @@ PublicIP=$(aws ec2 describe-instances --instance-ids $InstanceId --query 'Reserv
 echo $PublicIP >> lastspawn_info.tmp
 # Fetch the dmidecode UUID
 echo "Fetching dmidecode UUID from instance..."
-sleep 20
-UUID=$(ssh -o StrictHostKeyChecking=no -i ~/Vaults/teleporterx_plasmavault/aws/c2_autoarch_keypair.pem admin@$PublicIP "sudo cat /sys/class/dmi/id/product_uuid")
+sleep 60 # time for instance creation
+UUID=$(ssh -o StrictHostKeyChecking=no -i /home/teleporterx/c2_autoarch_keypair.pem ubuntu@$PublicIP "sudo cat /sys/class/dmi/id/product_uuid")
 if [ $? -eq 0 ]; then
     echo "dmidecode UUID: $UUID"
     echo $UUID >> lastspawn_info.tmp
