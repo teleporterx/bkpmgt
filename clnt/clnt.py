@@ -204,13 +204,6 @@ async def agent():
         return
     # PATCH: Use dotenv or other mechanisms when deploying to production
     password = "deepdefend_authpass"
-    token = await obtain_jwt(system_uuid, password)
-    if not token:
-        logger.error("Authentication routine failed!! Exiting...") # Failed to obtain JWT token
-        return
-    
-    # This passes the ORG along with system_uuid and token to the server via the WebSocket URL
-    bhive_uri = f"ws://{SRVR_IP}:5000/ws/{system_uuid}?token={token}&org={config.get('ORG')}"
 
     retry_attempts = 0
     backoff_factor = 2
@@ -220,6 +213,13 @@ async def agent():
 
     while running:
         try:
+            token = await obtain_jwt(system_uuid, password)
+            if not token:
+                logger.error("Authentication routine failed!! Exiting...") # Failed to obtain JWT token
+                return
+    
+            # This passes the ORG along with system_uuid and token to the server via the WebSocket URL
+            bhive_uri = f"ws://{SRVR_IP}:5000/ws/{system_uuid}?token={token}&org={config.get('ORG')}"
             uri = bhive_uri.format(system_uuid=system_uuid)  # Format URI with system_uuid
             async with websockets.connect(uri) as websocket:
                 logger.info("Connected to WebSocket server.")
